@@ -431,7 +431,24 @@ button:disabled { cursor: not-allowed; opacity: 0.45; }
   gap: 8px;
   margin-bottom: 10px;
 }
-.bucket-title { font-weight: 700; font-size: 0.95rem; color: var(--text); }
+/* Bucket titles take the bucket colour, with a light shimmer running across the text. */
+.bucket-title {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 1.2rem;
+  letter-spacing: -0.005em;
+  color: var(--c);
+  background: linear-gradient(90deg, var(--c) 0%, #ffffff 50%, var(--c) 100%);
+  background-size: 200% auto;
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  animation: title-shine 4.5s linear infinite;
+}
+@keyframes title-shine {
+  from { background-position: 200% center; }
+  to   { background-position: -200% center; }
+}
 .bucket-count {
   font-size: 0.75rem;
   font-weight: 700;
@@ -440,7 +457,35 @@ button:disabled { cursor: not-allowed; opacity: 0.45; }
   background: color-mix(in srgb, var(--c) 22%, transparent);
   color: var(--text);
 }
-.bucket-hint { font-size: 0.78rem; color: var(--text-faint); margin: -4px 0 10px; }
+.bucket-hint {
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--c);
+  margin: -2px 0 12px;
+  text-shadow: 0 0 12px color-mix(in srgb, var(--c) 45%, transparent);
+}
+
+/* Each bucket breathes in its own colour and pace. */
+.bucket { animation: bucket-glow 4s ease-in-out infinite; }
+.bucket-urgent  { animation-duration: 2.2s; }
+.bucket-normal  { animation-duration: 3.2s; }
+.bucket-okay    { animation-duration: 4.4s; }
+.bucket-whenever { animation-duration: 6.5s; }
+@keyframes bucket-glow {
+  0%, 100% { box-shadow: 0 0 0 0 transparent, var(--shadow); }
+  50%      { box-shadow: 0 0 0 0 transparent, var(--shadow), 0 0 26px -8px var(--c); }
+}
+.bucket-okay .bucket-hint { animation: hint-drift 4.4s ease-in-out infinite; }
+.bucket-urgent .bucket-hint { animation: hint-pulse 2.2s ease-in-out infinite; }
+.bucket-whenever .bucket-hint { color: #A1A1AA; text-shadow: 0 0 10px rgba(161, 161, 170, 0.35); }
+@keyframes hint-drift {
+  0%, 100% { transform: translateX(0); }
+  50%      { transform: translateX(4px); }
+}
+@keyframes hint-pulse {
+  0%, 100% { opacity: 0.85; }
+  50%      { opacity: 1; }
+}
 .bucket-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
 .bucket-empty { color: var(--text-faint); font-size: 0.85rem; padding: 6px 2px; }
 

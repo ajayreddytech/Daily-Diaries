@@ -714,7 +714,7 @@ function renderBoard() {
 
   for (const p of PRIORITIES) {
     const items = sorted.filter(t => t.priority === p.key);
-    els.buckets.append(el("section", { class: "bucket", style: { "--c": p.color }, "aria-label": p.label },
+    els.buckets.append(el("section", { class: "bucket bucket-" + p.key, style: { "--c": p.color }, "aria-label": p.label },
       el("div", { class: "bucket-head" },
         el("span", { class: "bucket-title", text: p.label }),
         el("span", { class: "bucket-count", text: String(items.length) })
