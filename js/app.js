@@ -52,8 +52,8 @@ const BIG_STAR = "M32 4 L39.5 22.5 L59 24.5 L44 37.5 L48.5 57 L32 46.5 L15.5 57 
 const SPARK_L = `<path class="spark s1" d="M54 4 L55.6 8.4 L60 10 L55.6 11.6 L54 16 L52.4 11.6 L48 10 L52.4 8.4 Z" fill="#FFFBEB"/>`;
 const SPARK_R = `<path class="spark s2" d="M10 2 L11.2 5.2 L14.4 6.4 L11.2 7.6 L10 10.8 L8.8 7.6 L5.6 6.4 L8.8 5.2 Z" fill="#FFFBEB"/>`;
 const GOLD_SVG = `<svg class="badge-icon gold" viewBox="0 0 64 64" aria-hidden="true"><defs><linearGradient id="gold-grad" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#FEF9C3"/><stop offset="0.45" stop-color="#FDE047"/><stop offset="1" stop-color="#CA8A04"/></linearGradient><radialGradient id="gold-radial"><stop offset="0" stop-color="#FDE047" stop-opacity="0.6"/><stop offset="1" stop-color="#FDE047" stop-opacity="0"/></radialGradient><clipPath id="gold-clip"><path d="${BIG_STAR}"/></clipPath></defs><circle class="glow" cx="32" cy="32" r="31" fill="url(#gold-radial)"/><g class="halo"><circle cx="32" cy="32" r="29" fill="none" stroke="#FDE047" stroke-width="1.2" stroke-dasharray="3 5"/></g><g class="body"><path d="${BIG_STAR}" fill="url(#gold-grad)" stroke="#EAB308" stroke-width="1.5" stroke-linejoin="round"/><g clip-path="url(#gold-clip)"><rect class="sheen" x="0" y="0" width="12" height="64" fill="rgba(255,255,255,0.85)"/></g></g>${SPARK_L}${SPARK_R}</svg>`;
-const SILVER_SVG = `<svg class="badge-icon silver" viewBox="0 0 64 64" aria-hidden="true"><defs><linearGradient id="silver-grad" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#FFFFFF"/><stop offset="0.5" stop-color="#CBD5E1"/><stop offset="1" stop-color="#64748B"/></linearGradient><clipPath id="silver-clip"><path d="${BIG_STAR}"/></clipPath></defs><circle class="ripple" cx="32" cy="34" r="22" fill="none" stroke="#E2E8F0" stroke-width="1.5"/><g class="body"><path d="${BIG_STAR}" fill="url(#silver-grad)" stroke="#94A3B8" stroke-width="1.5" stroke-linejoin="round"/><g clip-path="url(#silver-clip)"><rect class="sheen" x="0" y="0" width="10" height="64" fill="rgba(255,255,255,0.7)"/></g></g></svg>`;
-const RUST_SVG = `<svg class="badge-icon rust" viewBox="0 0 64 64" aria-hidden="true"><defs><filter id="rust-grain" x="0" y="0" width="100%" height="100%"><feTurbulence type="fractalNoise" baseFrequency="0.85" numOctaves="2" seed="7" result="noise"/><feColorMatrix in="noise" type="matrix" values="0 0 0 0 0.35  0 0 0 0 0.12  0 0 0 0 0.03  0 0 0 -2.4 1.3" result="spots"/><feComposite in="spots" in2="SourceGraphic" operator="in" result="rustSpots"/><feMerge><feMergeNode in="SourceGraphic"/><feMergeNode in="rustSpots"/></feMerge></filter><linearGradient id="rust-grad" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#C2410C"/><stop offset="0.6" stop-color="#9A3412"/><stop offset="1" stop-color="#6B3A1F"/></linearGradient></defs><g class="body"><path d="${BIG_STAR}" fill="url(#rust-grad)" stroke="#7C2D12" stroke-width="1.5" stroke-linejoin="round" filter="url(#rust-grain)"/></g><circle class="flake f1" cx="20" cy="46" r="1.6" fill="#B45309"/><circle class="flake f2" cx="44" cy="50" r="1.3" fill="#9A3412"/><circle class="flake f3" cx="32" cy="54" r="1.5" fill="#B45309"/></svg>`;
+const SILVER_SVG = `<svg class="badge-icon silver" viewBox="0 0 64 64" aria-hidden="true"><defs><linearGradient id="silver-grad" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#FFFFFF"/><stop offset="0.5" stop-color="#CBD5E1"/><stop offset="1" stop-color="#64748B"/></linearGradient><radialGradient id="heal-aura"><stop offset="0" stop-color="#A7F3D0" stop-opacity="0.55"/><stop offset="1" stop-color="#A7F3D0" stop-opacity="0"/></radialGradient><clipPath id="silver-clip"><path d="${BIG_STAR}"/></clipPath></defs><circle class="aura" cx="32" cy="32" r="31" fill="url(#heal-aura)"/><g class="body"><path d="${BIG_STAR}" fill="url(#silver-grad)" stroke="#94A3B8" stroke-width="1.5" stroke-linejoin="round"/><g clip-path="url(#silver-clip)"><rect class="sheen" x="0" y="0" width="10" height="64" fill="rgba(255,255,255,0.7)"/></g><path class="seam" d="M32 14 L32 50" stroke="#6EE7B7" stroke-width="2" stroke-linecap="round"/></g><g class="plus p1"><path d="M12 40 h4 M14 38 v4" stroke="#A7F3D0" stroke-width="1.6" stroke-linecap="round"/></g><g class="plus p2"><path d="M50 44 h4 M52 42 v4" stroke="#A7F3D0" stroke-width="1.6" stroke-linecap="round"/></g><g class="plus p3"><path d="M30 57 h3 M31.5 55.5 v3" stroke="#6EE7B7" stroke-width="1.4" stroke-linecap="round"/></g></svg>`;
+const RUST_SVG = `<svg class="badge-icon rust" viewBox="0 0 64 64" aria-hidden="true"><defs><filter id="rust-grain" x="0" y="0" width="100%" height="100%"><feTurbulence type="fractalNoise" baseFrequency="0.85" numOctaves="2" seed="7" result="noise"/><feColorMatrix in="noise" type="matrix" values="0 0 0 0 0.35  0 0 0 0 0.12  0 0 0 0 0.03  0 0 0 -2.4 1.3" result="spots"/><feComposite in="spots" in2="SourceGraphic" operator="in" result="rustSpots"/><feMerge><feMergeNode in="SourceGraphic"/><feMergeNode in="rustSpots"/></feMerge></filter><linearGradient id="rust-grad" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#C2410C"/><stop offset="0.6" stop-color="#9A3412"/><stop offset="1" stop-color="#6B3A1F"/></linearGradient><clipPath id="rust-left"><polygon points="0,0 36,0 30,26 38,40 28,64 0,64"/></clipPath><clipPath id="rust-right"><polygon points="36,0 64,0 64,64 28,64 38,40 30,26"/></clipPath></defs><g class="body"><g class="shard shard-a"><path d="${BIG_STAR}" fill="url(#rust-grad)" stroke="#7C2D12" stroke-width="1.5" stroke-linejoin="round" filter="url(#rust-grain)" clip-path="url(#rust-left)"/></g><g class="shard shard-b"><path d="${BIG_STAR}" fill="url(#rust-grad)" stroke="#7C2D12" stroke-width="1.5" stroke-linejoin="round" filter="url(#rust-grain)" clip-path="url(#rust-right)"/></g><polyline points="36,6 30,26 38,40 28,58" fill="none" stroke="#1C0A02" stroke-width="1.6" stroke-linejoin="round"/></g><circle class="flake f1" cx="20" cy="46" r="1.6" fill="#B45309"/><circle class="flake f2" cx="44" cy="50" r="1.3" fill="#9A3412"/><circle class="flake f3" cx="32" cy="54" r="1.5" fill="#B45309"/></svg>`;
 const BADGE_SVG = { diamond: DIAMOND_SVG, gold: GOLD_SVG, silver: SILVER_SVG, rust: RUST_SVG };
 const STAR_PATH ="M12 2.5l2.9 6.1 6.6.8-4.9 4.6 1.3 6.6L12 17.3 6.1 20.6l1.3-6.6-4.9-4.6 6.6-.8z";
 const DOTS_SVG = `<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="9" cy="6" r="1.7"/><circle cx="15" cy="6" r="1.7"/><circle cx="9" cy="12" r="1.7"/><circle cx="15" cy="12" r="1.7"/><circle cx="9" cy="18" r="1.7"/><circle cx="15" cy="18" r="1.7"/></svg>`;
@@ -99,6 +99,10 @@ function longDate(k) {
 function shortDate(k) {
   return parseKey(k).toLocaleDateString(undefined, { month: "short", day: "numeric" });
 }
+// Capital first letter of every word; collapses extra spaces.
+function capitalizeWords(s) {
+  return s.replace(/\s+/g, " ").trim().replace(/(^|\s)(\p{Ll})/gu, (m, sp, c) => sp + c.toUpperCase());
+}
 // Splits "I'm grateful to ... I'm grateful for ..." into separate numbered entries.
 function splitGratitude(text) {
   return text.split(GRATITUDE_SPLIT).map(s => s.replace(/\s+/g, " ").trim()).filter(Boolean);
@@ -123,6 +127,7 @@ let dragging = false;
 let pendingRender = false;
 let taskSpeech = null;
 let managerSpeech = null;
+let activeMicStop = null;       // stops whichever microphone is currently on
 
 /* ==========================================================================
    DOM refs
@@ -562,12 +567,21 @@ function attachSpeech(btn, field, onEnd) {
     }
   }
 
+  const stopMe = () => {
+    if (!wantListening) return;
+    wantListening = false;
+    if (active) rec.stop();
+    setUI(false);
+  };
+
   btn.addEventListener("click", () => {
-    if (wantListening) {
-      wantListening = false;
-      if (active) rec.stop(); else setUI(false);
-      return;
-    }
+    if (wantListening) { stopMe(); return; }
+    // Only one microphone runs at a time: stop whichever one is on.
+    if (activeMicStop && activeMicStop !== stopMe) activeMicStop();
+    activeMicStop = stopMe;
+    // Start writing into this box right away, with the caret at the end.
+    field.focus();
+    field.setSelectionRange(field.value.length, field.value.length);
     wantListening = true;
     setUI(true);
     startSessionSafe();
@@ -575,12 +589,7 @@ function attachSpeech(btn, field, onEnd) {
 
   return {
     reset() { base = ""; committed = ""; lastSet = ""; },
-    stop() {
-      if (!wantListening) return;
-      wantListening = false;
-      if (active) rec.stop();
-      setUI(false);
-    }
+    stop: stopMe
   };
 }
 
@@ -781,7 +790,7 @@ async function addTask(text) {
   if (!user || !text.trim()) return;
   try {
     await addDoc(tasksCol(user.uid), {
-      text: text.trim().slice(0, 300),
+      text: capitalizeWords(text).slice(0, 300),
       priority: null,            // starts in the dump, colour comes later
       order: nextOrder(),
       status: "open",
@@ -852,7 +861,7 @@ function managerItem(t) {
   const text = el("input", { type: "text", class: "m-text", value: t.text, maxlength: 300, "aria-label": "Task text" });
   text.addEventListener("keydown", e => { if (e.key === "Enter") text.blur(); });
   text.addEventListener("change", () => {
-    const v = text.value.trim();
+    const v = capitalizeWords(text.value);
     if (!v) { text.value = t.text; return; }
     updateDoc(taskRef(user.uid, t.id), { text: v }).catch(() => toast("Could not save text"));
   });
