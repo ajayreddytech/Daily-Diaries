@@ -1,0 +1,24 @@
+# Netlify hosting for Daily Diaries (static site, no build step).
+# Data still lives in Firebase Firestore; only the website is hosted on Netlify.
+[build]
+  publish = "."
+  command = ""
+
+# Always fetch the latest service worker and manifest so updates reach installed copies.
+[[headers]]
+  for = "/sw.js"
+  [headers.values]
+    Cache-Control = "no-cache"
+
+[[headers]]
+  for = "/manifest.json"
+  [headers.values]
+    Cache-Control = "no-cache"
+
+# Basic security headers.
+[[headers]]
+  for = "/*"
+  [headers.values]
+    X-Content-Type-Options = "nosniff"
+    Referrer-Policy = "strict-origin-when-cross-origin"
+    Permissions-Policy = "microphone=(self)"
