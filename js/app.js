@@ -36,15 +36,17 @@ const PRIORITY_BY_KEY = Object.fromEntries(PRIORITIES.map(p => [p.key, p]));
 // Ratings are shown with a medal name first and the original day name second.
 // Keys are unchanged, so existing saved ratings still match.
 const RATINGS = [
-  { key: "gold",    metal: "Golden day", title: "Stood out",   desc: "I achieved something, made a difference, and this day stood out.", color: "#facc15" },
-  { key: "best",    metal: "Silver day", title: "Best day",    desc: "I made good use of everything and I feel happy.",                   color: "#cbd5e1" },
-  { key: "average", metal: "Bronze day", title: "Average day", desc: "Some done, some not. Nothing spent, nothing bad.",                 color: "#d97706" },
-  { key: "wasted",  metal: "Iron day",   title: "Wasted day",  desc: "A flop. The day was totally wasted.",                              color: "#64748b" }
+  { key: "gold",    shape: "diamond", metal: "Diamond day", title: "Standout day", desc: "I achieved something, made a difference, and this day stood out.", color: "#7DD3FC" },
+  { key: "best",    shape: "star",    metal: "Silver day",  title: "Best day",     desc: "I made good use of everything and I feel happy.",                   color: "#FDE047" },
+  { key: "average", shape: "star",    metal: "Bronze day",  title: "Average day",  desc: "Some done, some not. Nothing spent, nothing bad.",                 color: "#FDBA74" },
+  { key: "wasted",  shape: "star",    metal: "Iron day",    title: "Wasted day",   desc: "A flop. The day was totally wasted.",                              color: "#52525B" }
 ];
 
 const FIELDS = ["gratitude", "frustrations"];
 const GRATITUDE_SPLIT = /(?=\bI\s*(?:['’]\s*m|\s+am)\s+grateful\b)/i;
-const STAR_PATH = "M12 2.5l2.9 6.1 6.6.8-4.9 4.6 1.3 6.6L12 17.3 6.1 20.6l1.3-6.6-4.9-4.6 6.6-.8z";
+// Diamond badge with a floating gem, a light sweep and twinkling sparkles (animated in styles.css).
+const DIAMOND_SVG = `<svg class="badge-icon diamond" viewBox="0 0 64 64" aria-hidden="true"><defs><linearGradient id="dia-grad" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#F0FBFF"/><stop offset="0.5" stop-color="#7DD3FC"/><stop offset="1" stop-color="#38BDF8"/></linearGradient><clipPath id="dia-clip"><path d="M32 6 L56 26 L32 58 L8 26 Z"/></clipPath></defs><g class="gem"><path d="M32 6 L56 26 L32 58 L8 26 Z" fill="url(#dia-grad)"/><path d="M8 26 H56 M22 26 L32 6 L42 26 M22 26 L32 58 L42 26" fill="none" stroke="rgba(255,255,255,0.6)" stroke-width="1.4" stroke-linejoin="round"/><g clip-path="url(#dia-clip)"><rect class="shine" x="0" y="0" width="9" height="64" fill="rgba(255,255,255,0.85)"/></g></g><path class="spark s1" d="M54 4 L55.6 8.4 L60 10 L55.6 11.6 L54 16 L52.4 11.6 L48 10 L52.4 8.4 Z" fill="#ffffff"/><path class="spark s2" d="M10 2 L11.2 5.2 L14.4 6.4 L11.2 7.6 L10 10.8 L8.8 7.6 L5.6 6.4 L8.8 5.2 Z" fill="#ffffff"/><path class="spark s3" d="M58 44 L59 46.6 L61.6 47.6 L59 48.6 L58 51.2 L57 48.6 L54.4 47.6 L57 46.6 Z" fill="#E0F7FF"/></svg>`;
+const STAR_PATH ="M12 2.5l2.9 6.1 6.6.8-4.9 4.6 1.3 6.6L12 17.3 6.1 20.6l1.3-6.6-4.9-4.6 6.6-.8z";
 const DOTS_SVG = `<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="9" cy="6" r="1.7"/><circle cx="15" cy="6" r="1.7"/><circle cx="9" cy="12" r="1.7"/><circle cx="15" cy="12" r="1.7"/><circle cx="9" cy="18" r="1.7"/><circle cx="15" cy="18" r="1.7"/></svg>`;
 const TRASH_SVG = `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13"/></svg>`;
 
@@ -231,6 +233,15 @@ function checkSvg() {
   p.setAttribute("d", "M5 12.5l4.5 4.5L19 7.5");
   svg.append(p);
   return svg;
+}
+
+function badgeIcon(r) {
+  if (r.shape === "diamond") {
+    const holder = document.createElement("span");
+    holder.innerHTML = DIAMOND_SVG;
+    return holder.firstElementChild;
+  }
+  return svgStar();
 }
 
 function svgStar() {
@@ -584,7 +595,7 @@ function renderRatings() {
       "aria-checked": String(selected), style: { "--c": r.color },
       onclick: () => setRating(selected ? null : r.key)
     },
-      svgStar(),
+      badgeIcon(r),
       el("span", { class: "r-name", text: r.metal }),
       el("span", { class: "r-sub", text: r.title }),
       el("span", { class: "r-desc", text: r.desc })

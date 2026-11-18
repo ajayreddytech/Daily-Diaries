@@ -405,12 +405,18 @@ button:disabled { cursor: not-allowed; opacity: 0.45; }
   flex-wrap: wrap;
 }
 
+/* One row of buckets: a horizontal scroller on narrow screens, four columns on wide ones. */
 .buckets {
-  display: grid;
+  display: flex;
   gap: 14px;
-  grid-template-columns: 1fr;
+  overflow-x: auto;
+  scroll-snap-type: x proximity;
+  padding-bottom: 6px;
+  -webkit-overflow-scrolling: touch;
 }
 .bucket {
+  flex: 0 0 min(260px, 78vw);
+  scroll-snap-align: start;
   background: var(--bg);
   border: 1px solid var(--border-soft);
   border-top: 3px solid var(--c);
@@ -504,6 +510,11 @@ button:disabled { cursor: not-allowed; opacity: 0.45; }
 }
 .rating:hover { border-color: var(--c); }
 .rating:active { transform: scale(0.97); }
+.rating .badge-icon {
+  width: 48px; height: 48px;
+  overflow: visible;
+  transition: transform .2s, filter .2s;
+}
 .rating .star {
   width: 44px; height: 44px;
   fill: var(--c);
@@ -578,6 +589,40 @@ button:disabled { cursor: not-allowed; opacity: 0.45; }
 .dump-text { min-width: 0; overflow-wrap: anywhere; }
 .prioritize-list { max-height: 60dvh; }
 .m-del { flex-shrink: 0; }
+
+/* ---------- Diamond badge animations ---------- */
+.badge-icon.diamond { filter: drop-shadow(0 0 6px rgba(125, 211, 252, 0.45)); }
+.rating[aria-checked="true"] .badge-icon.diamond {
+  transform: scale(1.08);
+  filter: drop-shadow(0 0 14px rgba(125, 211, 252, 0.9));
+}
+.badge-icon .gem {
+  transform-origin: 32px 32px;
+  animation: gem-float 3.2s ease-in-out infinite;
+}
+.badge-icon .shine {
+  animation: gem-shine 3.2s ease-in-out infinite;
+}
+.badge-icon .spark {
+  transform-box: fill-box;
+  transform-origin: center;
+  opacity: 0;
+  animation: spark-twinkle 2.4s ease-in-out infinite;
+}
+.badge-icon .s2 { animation-delay: 0.8s; }
+.badge-icon .s3 { animation-delay: 1.6s; }
+@keyframes gem-float {
+  0%, 100% { transform: translateY(0) rotate(0deg); }
+  50%      { transform: translateY(-2px) rotate(-3deg); }
+}
+@keyframes gem-shine {
+  0%      { transform: translateX(-14px); }
+  45%,100% { transform: translateX(62px); }
+}
+@keyframes spark-twinkle {
+  0%, 100% { opacity: 0; transform: scale(0.3) rotate(0deg); }
+  50%      { opacity: 1; transform: scale(1.15) rotate(45deg); }
+}
 
 /* ---------- Submit ---------- */
 .submit-row {
@@ -747,7 +792,6 @@ button:disabled { cursor: not-allowed; opacity: 0.45; }
 
 /* ---------- Responsive ---------- */
 @media (min-width: 640px) {
-  .buckets { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .date-display { min-width: 200px; }
 }
 
@@ -758,9 +802,13 @@ button:disabled { cursor: not-allowed; opacity: 0.45; }
   .page { padding-top: 26px; }
 }
 
-@media (min-width: 1024px) {
-  .buckets { grid-template-columns: repeat(3, minmax(0, 1fr)); }
-  .buckets .bucket:last-child:nth-child(odd) { grid-column: span 1; }
+@media (min-width: 1000px) {
+  .buckets {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    overflow: visible;
+  }
+  .bucket { flex: none; }
 }
 
 @media (max-width: 680px) {
