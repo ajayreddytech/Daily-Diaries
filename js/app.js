@@ -19,13 +19,17 @@ import { QUOTES } from "./quotes.js";
    Constants
    ========================================================================== */
 
+// The four priority buckets. Keys are kept from the earlier version so saved tasks still match.
 const PRIORITIES = [
-  { key: "urgent",   label: "Very high",       color: "#f43f5e", hint: "Must happen first" },
-  { key: "normal",   label: "Normal",          color: "#fb923c", hint: "Important, needed" },
-  { key: "okay",     label: "Okay",            color: "#38bdf8", hint: "Good to do" },
-  { key: "none",     label: "Not a priority",  color: "#94a3b8", hint: "Only if there is time" },
-  { key: "whenever", label: "Whenever I can",  color: "#a78bfa", hint: "No deadline, no pressure" }
+  { key: "urgent",   label: "High priority",              color: "#FDA4AF", hint: "Must do now" },
+  { key: "normal",   label: "Medium priority",            color: "#FDE047", hint: "Should do soon" },
+  { key: "okay",     label: "Low priority",               color: "#7DD3FC", hint: "Nice to do" },
+  { key: "whenever", label: "No priority / Whenever",     color: "#52525B", hint: "Whenever I like, have time or am in the mood" }
 ];
+// Old saved values that map onto the four buckets above.
+const LEGACY_PRIORITY = { none: "whenever" };
+const normalizePriority = p => (p in LEGACY_PRIORITY ? LEGACY_PRIORITY[p] : (p ?? null));
+// Fallback colour for tasks that are not yet in a bucket (not shown as a chip).
 const UNSORTED = { key: null, label: "Not sorted", color: "#475569", hint: "Not prioritised yet" };
 const PRIORITY_BY_KEY = Object.fromEntries(PRIORITIES.map(p => [p.key, p]));
 
@@ -305,7 +309,10 @@ function startListeners() {
   stopListeners();
   subscribeDay();
   tasksUnsub = onSnapshot(tasksCol(user.uid), snap => {
-    tasks = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+    tasks = snap.docs.map(d => {
+      const data = d.data();
+      return { id: d.id, ...data, priority: normalizePriority(data.priority) };
+    });
     if (view === null) showView(sortedTasks().length ? "buckets" : "dump");
     refreshTasksUI();
   }, err => toast("Could not load tasks: " + err.message, 5000));
@@ -802,10 +809,10 @@ async function deleteTask(t) {
 /* Shared task row: check, text, colours, delete. Used by prioritise and manager. */
 function renderMiniColors(container, task) {
   container.innerHTML = "";
-  for (const p of [...PRIORITIES, UNSORTED]) {
+  for (const p of PRIORITIES) {
     const selected = (task.priority ?? null) === p.key;
     container.append(el("button", {
-      type: "button", class: "m-color" + (p.key === null ? " none-option" : ""),
+      type: "button", class: "m-color",
       role: "radio", "aria-checked": String(selected),
       "aria-label": p.label, title: `${p.label}: ${p.hint}`,
       style: { "--c": p.color },
