@@ -131,7 +131,7 @@ const els = {
    Helpers
    ========================================================================== */
 
-const pad = n => String(n).padStart(2, "0");
+function pad(n) { return String(n).padStart(2, "0"); }
 function dateKey(d) { return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`; }
 function parseKey(k) { const [y, m, d] = k.split("-").map(Number); return new Date(y, m - 1, d); }
 function addDays(k, n) { const d = parseKey(k); d.setDate(d.getDate() + n); return dateKey(d); }
