@@ -20,6 +20,16 @@
 </head>
 <body>
 
+  <!-- Night sky background (decorative) -->
+  <div class="sky" aria-hidden="true">
+    <div class="aurora"></div>
+    <div class="stars stars-far"></div>
+    <div class="stars stars-near"></div>
+    <div class="moon"><span class="crater c1"></span><span class="crater c2"></span></div>
+    <span class="shoot sh1"></span>
+    <span class="shoot sh2"></span>
+  </div>
+
   <!-- ============ Sign-in ============ -->
   <section id="auth-screen" class="auth-screen" hidden>
     <div class="auth-card">
@@ -57,10 +67,6 @@
         <div class="date-display">
           <span id="page-date-long">Today</span>
           <button class="link-btn" id="jump-today" hidden>Back to today</button>
-          <div class="page-code" aria-live="polite">
-            <span id="save-status" class="save-status">All changes saved</span>
-            <span id="submitted-badge" class="page-flag" hidden>Submitted</span>
-          </div>
         </div>
         <button class="icon-btn" id="next-day" aria-label="Next day">
           <svg viewBox="0 0 24 24"><path d="M9 6l6 6-6 6"/></svg>
@@ -74,6 +80,12 @@
     </header>
 
     <main class="page">
+
+      <!-- Page code: centred at the top of the screen -->
+      <div class="page-code" aria-live="polite">
+        <span id="save-status" class="save-status">All changes saved</span>
+        <span id="submitted-badge" class="page-flag" hidden>Submitted</span>
+      </div>
 
       <!-- 1. Quote of the day -->
       <section class="quote-plain" aria-labelledby="quote-title">

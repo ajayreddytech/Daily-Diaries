@@ -58,10 +58,7 @@ html, body {
 }
 
 body {
-  background:
-    radial-gradient(1200px 600px at 10% -10%, rgba(139, 156, 255, 0.10), transparent 60%),
-    radial-gradient(900px 500px at 110% 0%, rgba(250, 204, 21, 0.05), transparent 60%),
-    var(--bg);
+  background: transparent;   /* the night sky layer (.sky) sits behind everything */
   min-height: 100dvh;
 }
 
@@ -301,7 +298,9 @@ button:disabled { cursor: not-allowed; opacity: 0.45; }
 }
 
 .card {
-  background: linear-gradient(180deg, var(--surface), var(--bg-elev));
+  background: linear-gradient(180deg, rgba(19, 27, 46, 0.80), rgba(15, 21, 36, 0.86));
+  -webkit-backdrop-filter: blur(10px);
+  backdrop-filter: blur(10px);
   border: 1px solid var(--border);
   border-radius: var(--radius);
   padding: 20px;
@@ -325,7 +324,7 @@ button:disabled { cursor: not-allowed; opacity: 0.45; }
   color: var(--text-dim);
   font-size: 0.9rem;
   margin-top: 4px;
-  max-width: 62ch;
+  max-width: none;   /* span the full width of the component */
 }
 
 /* Quote: plain text on the page, no box */
@@ -885,6 +884,125 @@ button:disabled { cursor: not-allowed; opacity: 0.45; }
   0%   { transform: translateY(-4px); opacity: 0; }
   20%  { opacity: 1; }
   100% { transform: translateY(22px); opacity: 0; }
+}
+
+/* ---------- Task drag handles inside buckets ---------- */
+.task-handle {
+  width: 24px;
+  height: 30px;
+  margin: -3px -4px 0 -6px;
+  flex-shrink: 0;
+}
+.task-handle svg { width: 16px; height: 16px; }
+.task.dragging {
+  position: fixed;
+  z-index: 200;
+  pointer-events: none;
+  background: var(--surface-2);
+  border-color: var(--accent);
+  box-shadow: 0 18px 40px -10px rgba(0, 0, 0, 0.7);
+  transition: none;
+}
+.bucket-list li.drag-placeholder {
+  list-style: none;
+  border: 2px dashed var(--accent);
+  border-radius: 12px;
+  background: var(--accent-soft);
+}
+
+/* ---------- Night sky background ---------- */
+.sky {
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  overflow: hidden;
+  pointer-events: none;
+  background: linear-gradient(180deg, #03050f 0%, #0a1027 55%, #111a36 100%);
+}
+.aurora {
+  position: absolute;
+  left: -20%;
+  right: -20%;
+  top: -10%;
+  height: 55%;
+  background:
+    radial-gradient(ellipse at 30% 0%, rgba(139, 156, 255, 0.22), transparent 60%),
+    radial-gradient(ellipse at 70% 10%, rgba(45, 212, 191, 0.14), transparent 60%);
+  filter: blur(28px);
+  animation: aurora-sway 14s ease-in-out infinite alternate;
+}
+@keyframes aurora-sway {
+  from { transform: translateX(-3%); }
+  to   { transform: translateX(3%); }
+}
+.stars {
+  position: absolute;
+  inset: -220px;
+  background-size: 220px 220px;
+}
+.stars-far {
+  background-image:
+    radial-gradient(1px 1px at 20px 30px, rgba(255, 255, 255, 0.75), transparent),
+    radial-gradient(1px 1px at 90px 120px, rgba(226, 232, 240, 0.6), transparent),
+    radial-gradient(1px 1px at 160px 60px, rgba(255, 255, 255, 0.55), transparent),
+    radial-gradient(1px 1px at 40px 180px, rgba(255, 255, 255, 0.6), transparent),
+    radial-gradient(1px 1px at 200px 150px, rgba(255, 255, 255, 0.5), transparent);
+  animation: star-drift 220s linear infinite, twinkle-soft 4s ease-in-out infinite alternate;
+}
+.stars-near {
+  background-image:
+    radial-gradient(1.6px 1.6px at 60px 80px, rgba(253, 230, 138, 0.9), transparent),
+    radial-gradient(1.5px 1.5px at 150px 20px, rgba(186, 230, 253, 0.9), transparent),
+    radial-gradient(1.6px 1.6px at 110px 170px, rgba(255, 255, 255, 0.9), transparent),
+    radial-gradient(1.4px 1.4px at 200px 110px, rgba(255, 255, 255, 0.8), transparent);
+  animation: star-drift 120s linear infinite, twinkle-soft 2.6s ease-in-out infinite alternate;
+}
+@keyframes star-drift { to { background-position: 220px 220px; } }
+@keyframes twinkle-soft { from { opacity: 0.45; } to { opacity: 1; } }
+
+.moon {
+  position: absolute;
+  top: 9%;
+  right: 8%;
+  width: 86px;
+  height: 86px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 34% 32%, #fffdf5 0%, #f1f5f9 45%, #cbd5e1 100%);
+  animation: moon-glow 6s ease-in-out infinite;
+}
+.crater {
+  position: absolute;
+  border-radius: 50%;
+  background: rgba(148, 163, 184, 0.35);
+}
+.c1 { width: 18px; height: 18px; top: 22px; left: 20px; }
+.c2 { width: 11px; height: 11px; top: 50px; left: 50px; }
+@keyframes moon-glow {
+  0%, 100% { box-shadow: 0 0 40px 10px rgba(226, 232, 240, 0.20), 0 0 120px 40px rgba(147, 197, 253, 0.10); }
+  50%      { box-shadow: 0 0 56px 16px rgba(226, 232, 240, 0.32), 0 0 150px 60px rgba(147, 197, 253, 0.18); }
+}
+
+.shoot {
+  position: absolute;
+  width: 140px;
+  height: 1.5px;
+  border-radius: 2px;
+  background: linear-gradient(90deg, transparent, #ffffff);
+  opacity: 0;
+  animation: shoot 9s ease-in infinite;
+}
+.sh1 { top: 14%; left: 55%; animation-delay: 1.5s; }
+.sh2 { top: 30%; left: 15%; animation-delay: 6s; animation-duration: 12s; }
+@keyframes shoot {
+  0%    { opacity: 0; transform: translate(0, 0) rotate(-22deg); }
+  5%    { opacity: 1; }
+  12%   { opacity: 0; transform: translate(380px, 200px) rotate(-22deg); }
+  100%  { opacity: 0; transform: translate(380px, 200px) rotate(-22deg); }
+}
+@media (max-width: 680px) {
+  .moon { width: 60px; height: 60px; top: 7%; right: 6%; }
+  .c1 { width: 13px; height: 13px; top: 15px; left: 14px; }
+  .c2 { width: 8px; height: 8px; top: 36px; left: 36px; }
 }
 
 /* ---------- Submit ---------- */

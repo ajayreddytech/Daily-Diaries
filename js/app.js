@@ -722,7 +722,7 @@ function renderBoard() {
         el("span", { class: "bucket-count", text: String(items.length) })
       ),
       el("p", { class: "bucket-hint", text: p.hint }),
-      el("ul", { class: "bucket-list" },
+      el("ul", { class: "bucket-list", "data-priority": p.key },
         items.length ? items.map(t => taskItem(t)) : [el("li", { class: "bucket-empty", text: "Nothing here" })]
       )
     ));
@@ -732,6 +732,7 @@ function renderBoard() {
 function taskItem(t) {
   const color = (PRIORITY_BY_KEY[t.priority] || UNSORTED).color;
   return el("li", { class: "task", "data-id": t.id, style: { "--c": color } },
+    dragHandle("drag-handle task-handle"),
     el("button", {
       type: "button", class: "check", "aria-label": "Mark as done", title: "Done",
       onclick: e => completeTask(t.id, e.currentTarget.closest("li"))
@@ -982,6 +983,125 @@ async function reorderTasks(ids) {
 
 enableDragReorder(els.managerList, reorderTasks);
 enableDragReorder(els.prioritizeList, reorderTasks);
+
+/* Grip handle (dots, no arrows). */
+function dragHandle(cls) {
+  const h = el("button", {
+    type: "button", class: cls, "aria-label": "Drag to move", title: "Drag to reorder or move to another bucket"
+  });
+  h.innerHTML = DOTS_SVG;
+  return h;
+}
+
+/* Drag tasks freely: within a bucket, or into another bucket. */
+function enableBucketDrag() {
+  const board = els.buckets;
+
+  board.addEventListener("pointerdown", e => {
+    const handle = e.target.closest(".task-handle");
+    if (!handle || e.button > 0) return;
+    const item = handle.closest("li.task");
+    if (!item) return;
+    e.preventDefault();
+
+    const rect = item.getBoundingClientRect();
+    const offsetX = e.clientX - rect.left;
+    const offsetY = e.clientY - rect.top;
+    const originalStyle = item.getAttribute("style");
+    const placeholder = el("li", { class: "drag-placeholder" });
+    placeholder.style.height = rect.height + "px";
+    let currentList = item.parentElement;
+    item.after(placeholder);
+
+    Object.assign(item.style, {
+      position: "fixed", top: rect.top + "px", left: rect.left + "px",
+      width: rect.width + "px", zIndex: "200"
+    });
+    item.classList.add("dragging");
+    dragging = true;
+    document.body.style.userSelect = "none";
+    handle.setPointerCapture(e.pointerId);
+
+    // The bucket column under the pointer (or the nearest one).
+    const listAt = x => {
+      let best = null, bestDist = Infinity;
+      for (const list of board.querySelectorAll(".bucket-list")) {
+        const r = list.closest(".bucket").getBoundingClientRect();
+        const d = x < r.left ? r.left - x : x > r.right ? x - r.right : 0;
+        if (d < bestDist) { bestDist = d; best = list; }
+        if (d === 0) break;
+      }
+      return best;
+    };
+
+    const onMove = ev => {
+      item.style.left = (ev.clientX - offsetX) + "px";
+      item.style.top = (ev.clientY - offsetY) + "px";
+      const list = listAt(ev.clientX);
+      if (!list) return;
+      if (list !== currentList) {
+        list.querySelectorAll(".bucket-empty").forEach(n => n.remove());
+        currentList = list;
+      }
+      const siblings = [...list.querySelectorAll("li.task:not(.dragging)")];
+      const target = siblings.find(s => {
+        const r = s.getBoundingClientRect();
+        return ev.clientY < r.top + r.height / 2;
+      });
+      if (target) {
+        if (placeholder.nextElementSibling !== target) list.insertBefore(placeholder, target);
+      } else if (list.lastElementChild !== placeholder) {
+        list.appendChild(placeholder);
+      }
+    };
+
+    const onUp = () => {
+      handle.removeEventListener("pointermove", onMove);
+      handle.removeEventListener("pointerup", onUp);
+      handle.removeEventListener("pointercancel", onUp);
+      placeholder.replaceWith(item);
+      item.classList.remove("dragging");
+      if (originalStyle === null) item.removeAttribute("style");
+      else item.setAttribute("style", originalStyle);
+      document.body.style.userSelect = "";
+      dragging = false;
+      saveBucketOrder();
+    };
+
+    handle.addEventListener("pointermove", onMove);
+    handle.addEventListener("pointerup", onUp);
+    handle.addEventListener("pointercancel", onUp);
+  });
+}
+
+// Writes the new order and priorities from what is now on the board.
+async function saveBucketOrder() {
+  if (!user) return;
+  const updates = [];
+  let index = 0;
+  for (const list of els.buckets.querySelectorAll(".bucket-list")) {
+    const priority = list.dataset.priority;
+    for (const li of list.querySelectorAll("li.task")) {
+      const t = tasks.find(x => x.id === li.dataset.id);
+      if (!t) continue;
+      const change = {};
+      if (t.order !== index) change.order = index;
+      if ((t.priority ?? null) !== priority) change.priority = priority;
+      t.order = index;
+      t.priority = priority;
+      if (Object.keys(change).length) updates.push([t.id, change]);
+      index++;
+    }
+  }
+  refreshTasksUI();
+  if (!updates.length) return;
+  const batch = writeBatch(db);
+  updates.forEach(([id, change]) => batch.update(taskRef(user.uid, id), change));
+  try { await batch.commit(); }
+  catch (err) { toast("Could not save the new order: " + err.message); }
+}
+
+enableBucketDrag();
 
 /* Manager add row: text or voice, Enter saves, mic stays on until closed. */
 function buildManagerAddRow() {
