@@ -328,13 +328,17 @@ button:disabled { cursor: not-allowed; opacity: 0.45; }
   max-width: 62ch;
 }
 
-/* Quote */
-.quote-card {
-  background:
-    radial-gradient(600px 220px at 0% 0%, rgba(250, 204, 21, 0.10), transparent 70%),
-    linear-gradient(180deg, var(--surface), var(--bg-elev));
+/* Quote: plain text on the page, no box */
+.quote-plain { padding: 0 4px; }
+.quote-label {
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--text-faint);
+  margin-bottom: 10px;
 }
-.quote { margin: 0; }
+.quote { margin: 0; text-align: left; }
 .quote p {
   font-family: var(--font-display);
   font-size: clamp(1.15rem, 2.4vw, 1.6rem);
