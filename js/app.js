@@ -732,7 +732,6 @@ function renderBoard() {
 function taskItem(t) {
   const color = (PRIORITY_BY_KEY[t.priority] || UNSORTED).color;
   return el("li", { class: "task", "data-id": t.id, style: { "--c": color } },
-    dragHandle("drag-handle task-handle"),
     el("button", {
       type: "button", class: "check", "aria-label": "Mark as done", title: "Done",
       onclick: e => completeTask(t.id, e.currentTarget.closest("li"))
@@ -984,57 +983,91 @@ async function reorderTasks(ids) {
 enableDragReorder(els.managerList, reorderTasks);
 enableDragReorder(els.prioritizeList, reorderTasks);
 
-/* Grip handle (dots, no arrows). */
-function dragHandle(cls) {
-  const h = el("button", {
-    type: "button", class: cls, "aria-label": "Drag to move", title: "Drag to reorder or move to another bucket"
-  });
-  h.innerHTML = DOTS_SVG;
-  return h;
-}
-
-/* Drag tasks freely: within a bucket, or into another bucket. */
+/* Drag tasks freely by the row itself (no handle):
+   mouse: press and move. Touch: press and hold, then drag; a normal swipe still scrolls. */
 function enableBucketDrag() {
   const board = els.buckets;
+  const HOLD_MS = 220;
 
   board.addEventListener("pointerdown", e => {
-    const handle = e.target.closest(".task-handle");
-    if (!handle || e.button > 0) return;
-    const item = handle.closest("li.task");
-    if (!item) return;
-    e.preventDefault();
+    if (e.button > 0) return;
+    const item = e.target.closest("li.task");
+    if (!item || e.target.closest(".check")) return;
 
-    const rect = item.getBoundingClientRect();
-    const offsetX = e.clientX - rect.left;
-    const offsetY = e.clientY - rect.top;
-    const originalStyle = item.getAttribute("style");
-    const placeholder = el("li", { class: "drag-placeholder" });
-    placeholder.style.height = rect.height + "px";
-    let currentList = item.parentElement;
-    item.after(placeholder);
+    const pid = e.pointerId;
+    const sx = e.clientX, sy = e.clientY;
+    const touch = e.pointerType === "touch";
+    let timer = null;
+    let drag = null;
 
-    Object.assign(item.style, {
-      position: "fixed", top: rect.top + "px", left: rect.left + "px",
-      width: rect.width + "px", zIndex: "200"
-    });
-    item.classList.add("dragging");
-    dragging = true;
-    document.body.style.userSelect = "none";
-    handle.setPointerCapture(e.pointerId);
-
-    // The bucket column under the pointer (or the nearest one).
-    const listAt = x => {
-      let best = null, bestDist = Infinity;
-      for (const list of board.querySelectorAll(".bucket-list")) {
-        const r = list.closest(".bucket").getBoundingClientRect();
-        const d = x < r.left ? r.left - x : x > r.right ? x - r.right : 0;
-        if (d < bestDist) { bestDist = d; best = list; }
-        if (d === 0) break;
-      }
-      return best;
+    const stopListening = () => {
+      clearTimeout(timer);
+      window.removeEventListener("pointermove", onMove);
+      window.removeEventListener("pointerup", onUp);
+      window.removeEventListener("pointercancel", onUp);
+    };
+    const start = () => {
+      clearTimeout(timer);
+      if (!drag) drag = beginBucketDrag(item, sx, sy);
+    };
+    const onMove = ev => {
+      if (ev.pointerId !== pid) return;
+      if (drag) { drag.move(ev); return; }
+      const d = Math.hypot(ev.clientX - sx, ev.clientY - sy);
+      if (touch) { if (d > 8) stopListening(); }   // finger moved before the hold: a scroll
+      else if (d > 4) start();
+    };
+    const onUp = ev => {
+      if (ev.pointerId !== pid) return;
+      stopListening();
+      if (drag) { drag.end(); drag = null; }
     };
 
-    const onMove = ev => {
+    window.addEventListener("pointermove", onMove);
+    window.addEventListener("pointerup", onUp);
+    window.addEventListener("pointercancel", onUp);
+    if (touch) timer = setTimeout(start, HOLD_MS);
+  });
+}
+
+function beginBucketDrag(item, sx, sy) {
+  const rect = item.getBoundingClientRect();
+  const offsetX = sx - rect.left;
+  const offsetY = sy - rect.top;
+  const originalStyle = item.getAttribute("style");
+  const placeholder = el("li", { class: "drag-placeholder" });
+  placeholder.style.height = rect.height + "px";
+  let currentList = item.parentElement;
+  item.after(placeholder);
+
+  Object.assign(item.style, {
+    position: "fixed", top: rect.top + "px", left: rect.left + "px",
+    width: rect.width + "px", zIndex: "200"
+  });
+  item.classList.add("dragging");
+  dragging = true;
+  document.body.style.userSelect = "none";
+
+  // Stop the page scrolling and the long-press menu while a task is being dragged.
+  const preventScroll = ev => { if (ev.cancelable) ev.preventDefault(); };
+  const preventMenu = ev => ev.preventDefault();
+  document.addEventListener("touchmove", preventScroll, { passive: false });
+  window.addEventListener("contextmenu", preventMenu);
+
+  // The bucket column under the pointer (or the nearest one).
+  const listAt = x => {
+    let best = null, bestDist = Infinity;
+    for (const list of els.buckets.querySelectorAll(".bucket-list")) {
+      const r = list.closest(".bucket").getBoundingClientRect();
+      const d = x < r.left ? r.left - x : x > r.right ? x - r.right : 0;
+      if (d < bestDist) { bestDist = d; best = list; }
+      if (d === 0) break;
+    }
+    return best;
+  };
+
+  return {
+    move(ev) {
       item.style.left = (ev.clientX - offsetX) + "px";
       item.style.top = (ev.clientY - offsetY) + "px";
       const list = listAt(ev.clientX);
@@ -1053,12 +1086,10 @@ function enableBucketDrag() {
       } else if (list.lastElementChild !== placeholder) {
         list.appendChild(placeholder);
       }
-    };
-
-    const onUp = () => {
-      handle.removeEventListener("pointermove", onMove);
-      handle.removeEventListener("pointerup", onUp);
-      handle.removeEventListener("pointercancel", onUp);
+    },
+    end() {
+      document.removeEventListener("touchmove", preventScroll);
+      window.removeEventListener("contextmenu", preventMenu);
       placeholder.replaceWith(item);
       item.classList.remove("dragging");
       if (originalStyle === null) item.removeAttribute("style");
@@ -1066,12 +1097,8 @@ function enableBucketDrag() {
       document.body.style.userSelect = "";
       dragging = false;
       saveBucketOrder();
-    };
-
-    handle.addEventListener("pointermove", onMove);
-    handle.addEventListener("pointerup", onUp);
-    handle.addEventListener("pointercancel", onUp);
-  });
+    }
+  };
 }
 
 // Writes the new order and priorities from what is now on the board.
