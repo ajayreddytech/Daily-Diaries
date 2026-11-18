@@ -857,8 +857,6 @@ function renderMiniColors(container, task) {
 
 function managerItem(t) {
   const item = el("div", { class: "m-item", "data-id": t.id });
-  const handle = el("button", { type: "button", class: "drag-handle", "aria-label": "Drag to reorder", title: "Drag to reorder" });
-  handle.innerHTML = DOTS_SVG;
 
   const check = el("button", {
     type: "button", class: "check", "aria-label": "Mark as done", title: "Done",
@@ -883,7 +881,7 @@ function managerItem(t) {
   });
   del.innerHTML = TRASH_SVG;
 
-  item.append(handle, check, el("div", { class: "m-item-main" }, text, colors), del);
+  item.append(check, el("div", { class: "m-item-main" }, text, colors), del);
   return item;
 }
 
@@ -912,31 +910,77 @@ function renderManager() {
   els.managerCount.textContent = `${open.length} open task${open.length === 1 ? "" : "s"}`;
 }
 
-/* Drag-to-reorder with pointer events (mouse, pen and touch). */
+/* Drag a task by its row (no handle): mouse press and move, or on touch press and hold.
+   Text fields, the tick and the colour dots keep their normal behaviour. */
 function enableDragReorder(container, onDrop) {
+  const HOLD_MS = 220;
+
   container.addEventListener("pointerdown", e => {
-    const handle = e.target.closest(".drag-handle");
-    if (!handle || e.button > 0) return;
-    const item = handle.closest(".m-item");
-    if (!item) return;
-    e.preventDefault();
+    if (e.button > 0) return;
+    const item = e.target.closest(".m-item");
+    if (!item || !container.contains(item)) return;
+    if (e.target.closest("button, input, .m-colors")) return;
 
-    const rect = item.getBoundingClientRect();
-    const offsetY = e.clientY - rect.top;
-    const placeholder = el("div", { class: "drag-placeholder" });
-    placeholder.style.height = rect.height + "px";
-    item.after(placeholder);
+    const pid = e.pointerId;
+    const sx = e.clientX, sy = e.clientY;
+    const touch = e.pointerType === "touch";
+    let timer = null;
+    let drag = null;
 
-    Object.assign(item.style, {
-      position: "fixed", top: rect.top + "px", left: rect.left + "px",
-      width: rect.width + "px", zIndex: "200"
-    });
-    item.classList.add("dragging");
-    dragging = true;
-    document.body.style.userSelect = "none";
-    handle.setPointerCapture(e.pointerId);
-
+    const stopListening = () => {
+      clearTimeout(timer);
+      window.removeEventListener("pointermove", onMove);
+      window.removeEventListener("pointerup", onUp);
+      window.removeEventListener("pointercancel", onUp);
+    };
+    const start = () => {
+      clearTimeout(timer);
+      if (!drag) drag = beginRowDrag(container, item, sx, sy, onDrop);
+    };
     const onMove = ev => {
+      if (ev.pointerId !== pid) return;
+      if (drag) { drag.move(ev); return; }
+      const d = Math.hypot(ev.clientX - sx, ev.clientY - sy);
+      if (touch) { if (d > 8) stopListening(); }   // finger moved before the hold: a scroll
+      else if (d > 4) start();
+    };
+    const onUp = ev => {
+      if (ev.pointerId !== pid) return;
+      stopListening();
+      if (drag) { drag.end(); drag = null; }
+    };
+
+    window.addEventListener("pointermove", onMove);
+    window.addEventListener("pointerup", onUp);
+    window.addEventListener("pointercancel", onUp);
+    if (touch) timer = setTimeout(start, HOLD_MS);
+  });
+}
+
+function beginRowDrag(container, item, sx, sy, onDrop) {
+  const rect = item.getBoundingClientRect();
+  const offsetX = sx - rect.left;
+  const offsetY = sy - rect.top;
+  const placeholder = el("div", { class: "drag-placeholder" });
+  placeholder.style.height = rect.height + "px";
+  item.after(placeholder);
+
+  Object.assign(item.style, {
+    position: "fixed", top: rect.top + "px", left: rect.left + "px",
+    width: rect.width + "px", zIndex: "200"
+  });
+  item.classList.add("dragging");
+  dragging = true;
+  document.body.style.userSelect = "none";
+
+  const preventScroll = ev => { if (ev.cancelable) ev.preventDefault(); };
+  const preventMenu = ev => ev.preventDefault();
+  document.addEventListener("touchmove", preventScroll, { passive: false });
+  window.addEventListener("contextmenu", preventMenu);
+
+  return {
+    move(ev) {
+      item.style.left = (ev.clientX - offsetX) + "px";
       item.style.top = (ev.clientY - offsetY) + "px";
       const siblings = [...container.querySelectorAll(".m-item:not(.dragging)")];
       const target = siblings.find(s => {
@@ -948,24 +992,18 @@ function enableDragReorder(container, onDrop) {
       } else if (container.lastElementChild !== placeholder) {
         container.appendChild(placeholder);
       }
-    };
-
-    const onUp = () => {
-      handle.removeEventListener("pointermove", onMove);
-      handle.removeEventListener("pointerup", onUp);
-      handle.removeEventListener("pointercancel", onUp);
+    },
+    end() {
+      document.removeEventListener("touchmove", preventScroll);
+      window.removeEventListener("contextmenu", preventMenu);
       placeholder.replaceWith(item);
       item.classList.remove("dragging");
       item.removeAttribute("style");
       document.body.style.userSelect = "";
       dragging = false;
       onDrop([...container.querySelectorAll(".m-item")].map(n => n.dataset.id));
-    };
-
-    handle.addEventListener("pointermove", onMove);
-    handle.addEventListener("pointerup", onUp);
-    handle.addEventListener("pointercancel", onUp);
-  });
+    }
+  };
 }
 
 // Reorders a list of tasks by reusing the slots they already occupy, so the
