@@ -65,7 +65,8 @@
           <svg viewBox="0 0 24 24"><path d="M15 6l-6 6 6 6"/></svg>
         </button>
         <div class="date-display">
-          <span id="page-date-long">Today</span>
+          <span id="page-date-long"></span>
+          <span id="today-label" class="today-label" hidden>Today</span>
           <button class="link-btn" id="jump-today" hidden>Back to today</button>
         </div>
         <button class="icon-btn" id="next-day" aria-label="Next day">
@@ -74,8 +75,15 @@
       </div>
 
       <div class="user-box">
-        <img id="user-avatar" class="avatar" alt="" hidden />
-        <button class="btn btn-ghost btn-sm" id="signout">Sign out</button>
+        <div class="user-menu">
+          <button type="button" class="avatar-btn" id="user-menu-btn" aria-haspopup="true" aria-expanded="false" aria-label="Account menu" title="Account">
+            <img id="user-avatar" class="avatar" alt="" hidden />
+            <span id="user-initial" class="avatar avatar-initial" aria-hidden="true" hidden></span>
+          </button>
+          <div id="user-menu-pop" class="user-pop" role="menu" hidden>
+            <button type="button" class="user-pop-item" id="signout" role="menuitem">Sign out</button>
+          </div>
+        </div>
       </div>
     </header>
 
@@ -100,18 +108,28 @@
         <section class="card" aria-labelledby="gratitude-title">
           <div class="card-head">
             <div>
+              <div class="card-title-row">
               <h2 id="gratitude-title" class="card-title">Gratitude</h2>
-              <p class="card-sub">What am I grateful for today? Name each person, moment or blessing that made the day better, and say why it matters. Start each one with "I'm grateful to..." and it will be numbered for you.</p>
-            </div>
+              <div class="card-tools">
+            <button type="button" class="icon-btn entry-edit-btn" id="gratitude-edit" aria-label="Edit entries" title="Edit entries">
+              <svg viewBox="0 0 24 24"><path d="M4 20h4L19 9l-4-4L4 16v4z"/><path d="M13.5 6.5l4 4"/></svg>
+            </button>
             <button class="mic-btn" data-speech="gratitude" aria-label="Start voice input for gratitude" title="Speak">
               <svg viewBox="0 0 24 24"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></svg>
             </button>
+            </div>
+            </div>
+              <p class="card-sub">What am I grateful for today? Name each person, moment or blessing that made the day better, and say why it matters. Start each one with "I'm grateful to..." and it will be starred for you.</p>
+            </div>
           </div>
-          <textarea id="gratitude" class="textarea" rows="7" placeholder="I'm grateful to my mother for her patience this morning. I'm grateful to my team for..."></textarea>
+          <!-- Hidden dictation buffer: the mic writes here, then the text is tidied and added as an entry. -->
+          <div class="entry-input-row" hidden>
+            <input id="gratitude-input" class="input" type="text" spellcheck="true" lang="en" tabindex="-1" aria-hidden="true" maxlength="500" />
+          </div>
           <div class="numbered-wrap">
             <h3 class="mini-title">Your entries</h3>
-            <ol id="gratitude-list" class="numbered-list"></ol>
-            <p id="gratitude-empty" class="muted small">Each "I'm grateful to..." sentence will appear here, numbered.</p>
+            <ul id="gratitude-list" class="numbered-list star-list"></ul>
+            <p id="gratitude-empty" class="muted small">Each "I'm grateful to..." sentence will appear here, with a star.</p>
           </div>
         </section>
 
@@ -119,20 +137,35 @@
         <section class="card" aria-labelledby="release-title">
           <div class="card-head">
             <div>
-              <h2 id="release-title" class="card-title">Let it go</h2>
-              <p class="card-sub">Frustrations, disappointments, resentments, suppressed hurts, unresolved relationships. Write them out, then let them go.</p>
-            </div>
-            <button class="mic-btn" data-speech="frustrations" aria-label="Start voice input for letting go" title="Speak">
+              <div class="card-title-row">
+              <h2 id="release-title" class="card-title">Let It Go</h2>
+              <div class="card-tools">
+            <button type="button" class="icon-btn entry-edit-btn" id="release-edit" aria-label="Edit entries" title="Edit entries">
+              <svg viewBox="0 0 24 24"><path d="M4 20h4L19 9l-4-4L4 16v4z"/><path d="M13.5 6.5l4 4"/></svg>
+            </button>
+            <button class="mic-btn" data-speech="release" aria-label="Start voice input for letting go" title="Speak">
               <svg viewBox="0 0 24 24"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></svg>
             </button>
+            </div>
+            </div>
+              <p class="card-sub">Frustrations, disappointments, resentments, suppressed hurts, unresolved relationships. Write them out, then let them go.</p>
+            </div>
           </div>
-          <textarea id="frustrations" class="textarea" rows="8" placeholder="What weighed on me, and what I choose to let go of..."></textarea>
+          <!-- Hidden dictation buffer: the mic writes here, then the text is tidied and added as an entry. -->
+          <div class="entry-input-row" hidden>
+            <input id="release-input" class="input" type="text" spellcheck="true" lang="en" tabindex="-1" aria-hidden="true" maxlength="500" />
+          </div>
+          <div class="numbered-wrap">
+            <h3 class="mini-title">Your entries</h3>
+            <ul id="release-list" class="numbered-list star-list"></ul>
+            <p id="release-empty" class="muted small">Each thing you let go of will appear here.</p>
+          </div>
         </section>
       <!-- 4. Pre-performance blueprint: dump -> prioritise -> buckets -->
-      <section class="card" aria-labelledby="blueprint-title">
+      <section class="card" id="blueprint-card" aria-labelledby="blueprint-title">
         <div class="card-head">
           <div>
-            <h2 id="blueprint-title" class="card-title">Pre-performance blueprint</h2>
+            <h2 id="blueprint-title" class="card-title">Pre-Performance Blueprint</h2>
             <p class="card-sub">Download your commitments for the hours ahead. Record your precious ambitions.</p>
           </div>
           <button class="btn btn-ghost btn-sm" id="open-manager">Manage all tasks</button>
@@ -169,6 +202,7 @@
 
         <!-- Step 3: buckets -->
         <div id="view-buckets" class="blueprint-view" hidden>
+          <p id="past-note" class="past-note" hidden>Read only. These are the tasks still pending on this day.</p>
           <div class="bucket-nav" aria-label="Priority buckets">
             <button class="icon-btn" id="bucket-prev" aria-label="Previous priority bucket">
               <svg viewBox="0 0 24 24"><path d="M15 6l-6 6 6 6"/></svg>

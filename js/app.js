@@ -43,17 +43,30 @@ const RATINGS = [
   { key: "wasted",  shape: "rust",    metal: "Rusty iron day",  title: "Wasted day",   desc: "A flop. The day was totally wasted.",                              color: "#C2410C" }
 ];
 
-const FIELDS = ["gratitude", "frustrations"];
+// The two entry lists. Each one is saved as an array on the day's page.
+const ENTRY_KINDS = {
+  gratitude: { field: "gratitudeItems", legacy: d => splitGratitude(d.gratitude || "") },
+  release: { field: "frustrationItems", legacy: d => String(d.frustrations || "").split(/\r?\n/).map(s => s.trim()).filter(Boolean) }
+};
+// items = saved entries; editing/draft = the open editor (saved only when the edit button is tapped again).
+const entryState = {
+  gratitude: { items: [], editing: false, draft: [] },
+  release: { items: [], editing: false, draft: [] }
+};
 const GRATITUDE_SPLIT = /(?=\bI\s*(?:['’]\s*m|\s+am)\s+grateful\b)/i;
 // Diamond badge with a floating gem, a light sweep and twinkling sparkles (animated in styles.css).
-const DIAMOND_SVG = `<svg class="badge-icon diamond" viewBox="0 0 64 64" aria-hidden="true"><defs><linearGradient id="dia-grad" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#F0FBFF"/><stop offset="0.5" stop-color="#7DD3FC"/><stop offset="1" stop-color="#38BDF8"/></linearGradient><clipPath id="dia-clip"><path d="M32 6 L56 26 L32 58 L8 26 Z"/></clipPath></defs><g class="gem"><path d="M32 6 L56 26 L32 58 L8 26 Z" fill="url(#dia-grad)"/><path d="M8 26 H56 M22 26 L32 6 L42 26 M22 26 L32 58 L42 26" fill="none" stroke="rgba(255,255,255,0.6)" stroke-width="1.4" stroke-linejoin="round"/><g clip-path="url(#dia-clip)"><rect class="shine" x="0" y="0" width="9" height="64" fill="rgba(255,255,255,0.85)"/></g></g><path class="spark s1" d="M54 4 L55.6 8.4 L60 10 L55.6 11.6 L54 16 L52.4 11.6 L48 10 L52.4 8.4 Z" fill="#ffffff"/><path class="spark s2" d="M10 2 L11.2 5.2 L14.4 6.4 L11.2 7.6 L10 10.8 L8.8 7.6 L5.6 6.4 L8.8 5.2 Z" fill="#ffffff"/><path class="spark s3" d="M58 44 L59 46.6 L61.6 47.6 L59 48.6 L58 51.2 L57 48.6 L54.4 47.6 L57 46.6 Z" fill="#E0F7FF"/></svg>`;
+const DIAMOND_SVG = `<svg class="badge-icon diamond" viewBox="0 0 64 64" aria-hidden="true"><defs><linearGradient id="dia-grad" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#F0FBFF"/><stop offset="0.5" stop-color="#7DD3FC"/><stop offset="1" stop-color="#38BDF8"/></linearGradient><clipPath id="dia-clip"><path d="M32 6 L56 26 L32 58 L8 26 Z"/></clipPath></defs><g class="gem"><path d="M32 6 L56 26 L32 58 L8 26 Z" fill="url(#dia-grad) #7DD3FC"/><path d="M8 26 H56 M22 26 L32 6 L42 26 M22 26 L32 58 L42 26" fill="none" stroke="rgba(255,255,255,0.6)" stroke-width="1.4" stroke-linejoin="round"/><g clip-path="url(#dia-clip)"><rect class="shine" x="0" y="0" width="9" height="64" fill="rgba(255,255,255,0.85)"/></g></g><path class="spark s1" d="M54 4 L55.6 8.4 L60 10 L55.6 11.6 L54 16 L52.4 11.6 L48 10 L52.4 8.4 Z" fill="#ffffff"/><path class="spark s2" d="M10 2 L11.2 5.2 L14.4 6.4 L11.2 7.6 L10 10.8 L8.8 7.6 L5.6 6.4 L8.8 5.2 Z" fill="#ffffff"/><path class="spark s3" d="M58 44 L59 46.6 L61.6 47.6 L59 48.6 L58 51.2 L57 48.6 L54.4 47.6 L57 46.6 Z" fill="#E0F7FF"/></svg>`;
 // Star-shaped badges for the Golden, Silver and Rusty iron days.
 const BIG_STAR = "M32 4 L39.5 22.5 L59 24.5 L44 37.5 L48.5 57 L32 46.5 L15.5 57 L20 37.5 L5 24.5 L24.5 22.5 Z";
 const SPARK_L = `<path class="spark s1" d="M54 4 L55.6 8.4 L60 10 L55.6 11.6 L54 16 L52.4 11.6 L48 10 L52.4 8.4 Z" fill="#FFFBEB"/>`;
 const SPARK_R = `<path class="spark s2" d="M10 2 L11.2 5.2 L14.4 6.4 L11.2 7.6 L10 10.8 L8.8 7.6 L5.6 6.4 L8.8 5.2 Z" fill="#FFFBEB"/>`;
 const GOLD_SVG = `<svg class="badge-icon gold" viewBox="0 0 64 64" aria-hidden="true"><defs><linearGradient id="gold-grad" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#FEF9C3"/><stop offset="0.45" stop-color="#FDE047"/><stop offset="1" stop-color="#CA8A04"/></linearGradient><radialGradient id="gold-radial"><stop offset="0" stop-color="#FDE047" stop-opacity="0.6"/><stop offset="1" stop-color="#FDE047" stop-opacity="0"/></radialGradient><clipPath id="gold-clip"><path d="${BIG_STAR}"/></clipPath></defs><circle class="glow" cx="32" cy="32" r="31" fill="url(#gold-radial)"/><g class="halo"><circle cx="32" cy="32" r="29" fill="none" stroke="#FDE047" stroke-width="1.2" stroke-dasharray="3 5"/></g><g class="body"><path d="${BIG_STAR}" fill="url(#gold-grad)" stroke="#EAB308" stroke-width="1.5" stroke-linejoin="round"/><g clip-path="url(#gold-clip)"><rect class="sheen" x="0" y="0" width="12" height="64" fill="rgba(255,255,255,0.85)"/></g></g>${SPARK_L}${SPARK_R}</svg>`;
-const SILVER_SVG = `<svg class="badge-icon silver" viewBox="0 0 64 64" aria-hidden="true"><defs><linearGradient id="silver-grad" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#FFFFFF"/><stop offset="0.5" stop-color="#CBD5E1"/><stop offset="1" stop-color="#64748B"/></linearGradient><radialGradient id="heal-aura"><stop offset="0" stop-color="#A7F3D0" stop-opacity="0.55"/><stop offset="1" stop-color="#A7F3D0" stop-opacity="0"/></radialGradient><clipPath id="silver-clip"><path d="${BIG_STAR}"/></clipPath></defs><circle class="aura" cx="32" cy="32" r="31" fill="url(#heal-aura)"/><g class="body"><path d="${BIG_STAR}" fill="url(#silver-grad)" stroke="#94A3B8" stroke-width="1.5" stroke-linejoin="round"/><g clip-path="url(#silver-clip)"><rect class="sheen" x="0" y="0" width="10" height="64" fill="rgba(255,255,255,0.7)"/></g><path class="seam" d="M32 14 L32 50" stroke="#6EE7B7" stroke-width="2" stroke-linecap="round"/></g><g class="plus p1"><path d="M12 40 h4 M14 38 v4" stroke="#A7F3D0" stroke-width="1.6" stroke-linecap="round"/></g><g class="plus p2"><path d="M50 44 h4 M52 42 v4" stroke="#A7F3D0" stroke-width="1.6" stroke-linecap="round"/></g><g class="plus p3"><path d="M30 57 h3 M31.5 55.5 v3" stroke="#6EE7B7" stroke-width="1.4" stroke-linecap="round"/></g></svg>`;
-const RUST_SVG = `<svg class="badge-icon rust" viewBox="0 0 64 64" aria-hidden="true"><defs><filter id="rust-grain" x="0" y="0" width="100%" height="100%"><feTurbulence type="fractalNoise" baseFrequency="0.85" numOctaves="2" seed="7" result="noise"/><feColorMatrix in="noise" type="matrix" values="0 0 0 0 0.35  0 0 0 0 0.12  0 0 0 0 0.03  0 0 0 -2.4 1.3" result="spots"/><feComposite in="spots" in2="SourceGraphic" operator="in" result="rustSpots"/><feMerge><feMergeNode in="SourceGraphic"/><feMergeNode in="rustSpots"/></feMerge></filter><linearGradient id="rust-grad" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#C2410C"/><stop offset="0.6" stop-color="#9A3412"/><stop offset="1" stop-color="#6B3A1F"/></linearGradient><clipPath id="rust-left"><polygon points="0,0 36,0 30,26 38,40 28,64 0,64"/></clipPath><clipPath id="rust-right"><polygon points="36,0 64,0 64,64 28,64 38,40 30,26"/></clipPath></defs><g class="body"><g class="shard shard-a"><path d="${BIG_STAR}" fill="url(#rust-grad)" stroke="#7C2D12" stroke-width="1.5" stroke-linejoin="round" filter="url(#rust-grain)" clip-path="url(#rust-left)"/></g><g class="shard shard-b"><path d="${BIG_STAR}" fill="url(#rust-grad)" stroke="#7C2D12" stroke-width="1.5" stroke-linejoin="round" filter="url(#rust-grain)" clip-path="url(#rust-right)"/></g><polyline points="36,6 30,26 38,40 28,58" fill="none" stroke="#1C0A02" stroke-width="1.6" stroke-linejoin="round"/></g><circle class="flake f1" cx="20" cy="46" r="1.6" fill="#B45309"/><circle class="flake f2" cx="44" cy="50" r="1.3" fill="#9A3412"/><circle class="flake f3" cx="32" cy="54" r="1.5" fill="#B45309"/></svg>`;
+// One crack line shared by the rusty star and the silver star, so the healing follows the same scratches exactly.
+const CRACK_MAIN = "M36 6 L30 26 L38 40 L28 58";
+const CRACK_BRANCHES = "M30 26 L19 31 L13 28 M38 40 L49 35 L57 38 M28 58 L22 51 L16 53 M36 6 L45 13 L52 10";
+const CRACK_ALL = `${CRACK_MAIN} ${CRACK_BRANCHES}`;
+const SILVER_SVG = `<svg class="badge-icon silver" viewBox="0 0 64 64" aria-hidden="true"><defs><linearGradient id="silver-grad" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#FFFFFF"/><stop offset="0.5" stop-color="#CBD5E1"/><stop offset="1" stop-color="#64748B"/></linearGradient><radialGradient id="heal-aura"><stop offset="0" stop-color="#A7F3D0" stop-opacity="0.55"/><stop offset="1" stop-color="#A7F3D0" stop-opacity="0"/></radialGradient><clipPath id="silver-clip"><path d="${BIG_STAR}"/></clipPath></defs><circle class="aura" cx="32" cy="32" r="31" fill="url(#heal-aura)"/><g class="body"><path d="${BIG_STAR}" fill="url(#silver-grad)" stroke="#94A3B8" stroke-width="1.5" stroke-linejoin="round"/><g clip-path="url(#silver-clip)"><rect class="sheen" x="0" y="0" width="10" height="64" fill="rgba(255,255,255,0.7)"/></g><g clip-path="url(#silver-clip)"><path class="scar" d="${CRACK_ALL}" fill="none" stroke="#64748B" stroke-width="0.6" stroke-linecap="round" stroke-linejoin="round"/><path class="heal seam-glow" pathLength="100" d="${CRACK_ALL}" fill="none" stroke="#6EE7B7" stroke-opacity="0.35" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/><path class="heal seam" pathLength="100" d="${CRACK_ALL}" fill="none" stroke="#F1F5F9" stroke-width="0.8" stroke-linecap="round" stroke-linejoin="round"/></g></g><circle class="glint" r="1.9" fill="#ECFDF5"><animateMotion dur="4.2s" repeatCount="indefinite" calcMode="linear" keyTimes="0;0.55;1" keyPoints="0;1;1" path="${CRACK_MAIN}"/></circle><g class="plus p1"><path d="M12 40 h4 M14 38 v4" stroke="#A7F3D0" stroke-width="1.6" stroke-linecap="round"/></g><g class="plus p2"><path d="M50 44 h4 M52 42 v4" stroke="#A7F3D0" stroke-width="1.6" stroke-linecap="round"/></g><g class="plus p3"><path d="M30 57 h3 M31.5 55.5 v3" stroke="#6EE7B7" stroke-width="1.4" stroke-linecap="round"/></g></svg>`;
+const RUST_SVG = `<svg class="badge-icon rust" viewBox="0 0 64 64" aria-hidden="true"><defs><filter id="rust-grain" x="0" y="0" width="100%" height="100%"><feTurbulence type="fractalNoise" baseFrequency="0.85" numOctaves="2" seed="7" result="noise"/><feColorMatrix in="noise" type="matrix" values="0 0 0 0 0.35  0 0 0 0 0.12  0 0 0 0 0.03  0 0 0 -2.4 1.3" result="spots"/><feComposite in="spots" in2="SourceGraphic" operator="in" result="rustSpots"/><feMerge><feMergeNode in="SourceGraphic"/><feMergeNode in="rustSpots"/></feMerge></filter><linearGradient id="rust-grad" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#C2410C"/><stop offset="0.6" stop-color="#9A3412"/><stop offset="1" stop-color="#6B3A1F"/></linearGradient><clipPath id="rust-star"><path d="${BIG_STAR}"/></clipPath><clipPath id="rust-left"><polygon points="0,0 36,0 36,6 30,26 38,40 28,58 28,64 0,64"/></clipPath><clipPath id="rust-right"><polygon points="36,0 64,0 64,64 28,64 28,58 38,40 30,26 36,6"/></clipPath></defs><g class="body"><g class="shard shard-a"><path d="${BIG_STAR}" fill="url(#rust-grad)" stroke="#7C2D12" stroke-width="1.5" stroke-linejoin="round" filter="url(#rust-grain)" clip-path="url(#rust-left)"/></g><g class="shard shard-b"><path d="${BIG_STAR}" fill="url(#rust-grad)" stroke="#7C2D12" stroke-width="1.5" stroke-linejoin="round" filter="url(#rust-grain)" clip-path="url(#rust-right)"/></g><g clip-path="url(#rust-star)"><path class="crack" d="${CRACK_ALL}" fill="none" stroke="#1C0A02" stroke-width="1.8" stroke-linejoin="round" stroke-linecap="round"/></g></g><polygon class="flake f1" points="17,45 23,41 24,48" fill="#B45309"/><polygon class="flake f2" points="44,51 50,47 49,54" fill="#9A3412"/><polygon class="flake f3" points="30,56 35,53 34,59" fill="#B45309"/></svg>`;
 const BADGE_SVG = { diamond: DIAMOND_SVG, gold: GOLD_SVG, silver: SILVER_SVG, rust: RUST_SVG };
 const STAR_PATH ="M12 2.5l2.9 6.1 6.6.8-4.9 4.6 1.3 6.6L12 17.3 6.1 20.6l1.3-6.6-4.9-4.6 6.6-.8z";
 const DOTS_SVG = `<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="9" cy="6" r="1.7"/><circle cx="15" cy="6" r="1.7"/><circle cx="9" cy="12" r="1.7"/><circle cx="15" cy="12" r="1.7"/><circle cx="9" cy="18" r="1.7"/><circle cx="15" cy="18" r="1.7"/></svg>`;
@@ -96,7 +109,7 @@ function addDays(k, n) { const d = parseKey(k); d.setDate(d.getDate() + n); retu
 function daysBetween(a, b) { return Math.round((parseKey(b) - parseKey(a)) / 864e5); }
 function dayOfYear(k) { const d = parseKey(k); return Math.floor((d - new Date(d.getFullYear(), 0, 0)) / 864e5); }
 function longDate(k) {
-  return parseKey(k).toLocaleDateString(undefined, { weekday: "long", month: "long", day: "numeric", year: "numeric" });
+  return parseKey(k).toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric" });
 }
 function shortDate(k) {
   return parseKey(k).toLocaleDateString(undefined, { month: "short", day: "numeric" });
@@ -105,7 +118,7 @@ function shortDate(k) {
 function capitalizeWords(s) {
   return s.replace(/\s+/g, " ").trim().replace(/(^|\s)(\p{Ll})/gu, (m, sp, c) => sp + c.toUpperCase());
 }
-// Splits "I'm grateful to ... I'm grateful for ..." into separate numbered entries.
+// Splits "I'm grateful to ... I'm grateful for ..." into separate entries.
 function splitGratitude(text) {
   return text.split(GRATITUDE_SPLIT).map(s => s.replace(/\s+/g, " ").trim()).filter(Boolean);
 }
@@ -121,8 +134,6 @@ let dayData = {};
 let tasks = [];
 let dayUnsub = null;
 let tasksUnsub = null;
-let saveTimer = null;
-const dirty = new Set();
 let view = null;                // "dump" | "prioritize" | "buckets"; null until tasks load
 let preparing = new Set();      // task ids being coloured in the prioritise step
 let dragging = false;
@@ -145,18 +156,22 @@ const els = {
   signin: $("#google-signin"),
   signout: $("#signout"),
   avatar: $("#user-avatar"),
+  userInitial: $("#user-initial"),
+  userMenuBtn: $("#user-menu-btn"),
+  userMenuPop: $("#user-menu-pop"),
   prev: $("#prev-day"),
   next: $("#next-day"),
   jumpToday: $("#jump-today"),
+  todayLabel: $("#today-label"),
   dateLong: $("#page-date-long"),
   quoteText: $("#quote-text"),
   quoteAuthor: $("#quote-author"),
   saveStatus: $("#save-status"),
   submittedBadge: $("#submitted-badge"),
-  gratitude: $("#gratitude"),
-  gratitudeList: $("#gratitude-list"),
-  gratitudeEmpty: $("#gratitude-empty"),
-  frustrations: $("#frustrations"),
+  entryInput: { gratitude: $("#gratitude-input"), release: $("#release-input") },
+  entryList: { gratitude: $("#gratitude-list"), release: $("#release-list") },
+  entryEmpty: { gratitude: $("#gratitude-empty"), release: $("#release-empty") },
+  entryEdit: { gratitude: $("#gratitude-edit"), release: $("#release-edit") },
   viewDump: $("#view-dump"),
   viewPrioritize: $("#view-prioritize"),
   viewBuckets: $("#view-buckets"),
@@ -182,6 +197,8 @@ const els = {
   submitBtn: $("#submit-page"),
   submitNote: $("#submit-note"),
   openManager: $("#open-manager"),
+  blueprintCard: $("#blueprint-card"),
+  pastNote: $("#past-note"),
   manager: $("#manager"),
   managerList: $("#manager-list"),
   managerEmpty: $("#manager-empty"),
@@ -233,6 +250,20 @@ function openTasks() {
 // Dump = added but not yet prioritised (no colour).
 const dumpTasks = () => openTasks().filter(t => !t.priority);
 const sortedTasks = () => openTasks().filter(t => !!t.priority);
+
+// Past days show the buckets as they stood on that day: tasks added by then, in a bucket,
+// and not finished before it. Done tasks are not stored with their history, so this uses
+// each task's current bucket and its doneOn date. Tasks with no createdOn date have no
+// known start, so they only appear on today.
+function pendingOn(key) {
+  return tasks
+    .filter(t => t.priority
+      && !!t.createdOn && t.createdOn <= key
+      && (t.status !== "done" || (!!t.doneOn && t.doneOn > key)))
+    .sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
+}
+const isPastView = () => viewKey !== today;
+const boardTasks = () => (isPastView() ? pendingOn(viewKey) : sortedTasks());
 
 function nextOrder() {
   const open = openTasks();
@@ -292,7 +323,16 @@ if (!configured) {
   onAuthStateChanged(auth, u => {
     if (u) {
       user = u;
-      if (u.photoURL) { els.avatar.src = u.photoURL; els.avatar.hidden = false; }
+      if (u.photoURL) {
+        els.avatar.src = u.photoURL;
+        els.avatar.hidden = false;
+        els.userInitial.hidden = true;
+      } else {
+        // No photo: show the first letter of the name instead.
+        els.avatar.hidden = true;
+        els.userInitial.textContent = (u.displayName || u.email || "?").trim().charAt(0).toUpperCase();
+        els.userInitial.hidden = false;
+      }
       showScreen("app");
       startListeners();
       renderDate();
@@ -323,7 +363,24 @@ if (!configured) {
     }
   });
 
+  // Profile picture opens a small menu with Sign out.
+  const setUserMenu = open => {
+    els.userMenuPop.hidden = !open;
+    els.userMenuBtn.setAttribute("aria-expanded", String(open));
+  };
+  els.userMenuBtn.addEventListener("click", e => {
+    e.stopPropagation();
+    setUserMenu(els.userMenuPop.hidden);
+  });
+  document.addEventListener("click", e => {
+    if (!els.userMenuPop.hidden && !e.target.closest(".user-menu")) setUserMenu(false);
+  });
+  document.addEventListener("keydown", e => {
+    if (e.key === "Escape") setUserMenu(false);
+  });
+
   els.signout.addEventListener("click", async () => {
+    setUserMenu(false);
     await flushSave();
     await signOut(auth);
   });
@@ -352,7 +409,6 @@ function stopListeners() {
   dayUnsub = tasksUnsub = null;
   tasks = [];
   dayData = {};
-  dirty.clear();
   view = null;
 }
 
@@ -366,11 +422,7 @@ function subscribeDay() {
 }
 
 function applyDay() {
-  for (const f of FIELDS) {
-    const field = $("#" + f);
-    if (!dirty.has(f) && document.activeElement !== field) field.value = dayData[f] || "";
-  }
-  renderGratitudeList();
+  syncEntries();
   renderRatings();
   renderSubmitState();
   renderQuote();
@@ -381,41 +433,14 @@ function applyDay() {
    Saving (gratitude & letting-go text, autosave to Firestore)
    ========================================================================== */
 
-function scheduleSave() {
-  setStatus("Saving...", "saving");
-  clearTimeout(saveTimer);
-  saveTimer = setTimeout(flushSave, 600);
+// Commits any open entry editor, so nothing is lost when the page changes or closes.
+// Each save captures its date synchronously, so this is safe to call just before the date changes.
+function flushSave() {
+  return Promise.all(Object.keys(ENTRY_KINDS)
+    .filter(kind => entryState[kind].editing)
+    .map(kind => finishEntryEdit(kind)));
 }
 
-async function flushSave() {
-  clearTimeout(saveTimer);
-  if (!user || !dirty.size) { if (user) setStatus("All changes saved"); return; }
-  const key = viewKey;
-  const payload = {};
-  for (const f of dirty) {
-    payload[f] = $("#" + f).value;
-    if (f === "gratitude") payload.gratitudeItems = splitGratitude(payload.gratitude);
-  }
-  dirty.clear();
-  payload.updatedAt = serverTimestamp();
-  try {
-    await setDoc(dayRef(user.uid, key), payload, { merge: true });
-    setStatus("All changes saved");
-  } catch (err) {
-    FIELDS.forEach(f => { if (f in payload) dirty.add(f); });
-    setStatus("Not saved yet, will retry", "error");
-    saveTimer = setTimeout(flushSave, 3000);
-  }
-}
-
-els.gratitude.addEventListener("input", renderGratitudeList);
-FIELDS.forEach(f => {
-  $("#" + f).addEventListener("input", () => {
-    if (!user) return;
-    dirty.add(f);
-    scheduleSave();
-  });
-});
 
 window.addEventListener("pagehide", () => { flushSave(); });
 document.addEventListener("visibilitychange", () => {
@@ -424,14 +449,162 @@ document.addEventListener("visibilitychange", () => {
 });
 
 /* ==========================================================================
-   Gratitude: numbered entries built from "I'm grateful to..." sentences
+   Entries: gratitude and letting go
+   Speak or type, then press Enter or tap the mic again. The text is tidied
+   up and added as an entry. The edit button opens the list for changes
+   (edit text, delete lines); tapping it again saves.
    ========================================================================== */
 
-function renderGratitudeList() {
-  const items = splitGratitude(els.gratitude.value);
-  els.gratitudeList.innerHTML = "";
-  items.forEach(text => els.gratitudeList.append(el("li", { text })));
-  els.gratitudeEmpty.hidden = items.length > 0;
+// Common spelling and contraction slips, from speech or typing. Keys are lower case.
+const SPOKEN_FIXES = {
+  i: "I", im: "I'm", ive: "I've", id: "I'd", hes: "he's", shes: "she's", weve: "we've",
+  youre: "you're", theyre: "they're", thats: "that's", whats: "what's", theres: "there's", heres: "here's", lets: "let's",
+  dont: "don't", doesnt: "doesn't", didnt: "didn't", cant: "can't", wont: "won't", isnt: "isn't", arent: "aren't",
+  wasnt: "wasn't", werent: "weren't", havent: "haven't", hasnt: "hasn't", couldnt: "couldn't", shouldnt: "shouldn't", wouldnt: "wouldn't",
+  recieve: "receive", teh: "the", becuase: "because", becasue: "because", definately: "definitely", seperate: "separate",
+  occured: "occurred", untill: "until", alot: "a lot", freind: "friend", beleive: "believe", wierd: "weird", acheive: "achieve",
+  tommorow: "tomorrow", tomorow: "tomorrow", neccessary: "necessary", goverment: "government", familly: "family",
+  happyness: "happiness", thier: "their", accomodate: "accommodate", embarass: "embarrass", grattitude: "gratitude",
+  gratefull: "grateful", greatful: "grateful", thankyou: "thank you", thanku: "thank you", realy: "really", truely: "truly",
+  wich: "which", peice: "piece", enviroment: "environment", finaly: "finally", suprise: "surprise", begining: "beginning",
+  occassion: "occasion", recomend: "recommend", existance: "existence", sincerly: "sincerely"
+};
+
+// Rule-based tidy-up: removes filler sounds, fixes common slips, repeated words,
+// spacing around punctuation, capital letters at sentence starts, and a final full stop.
+function tidyText(raw) {
+  let s = String(raw ?? "").replace(/\s+/g, " ").trim();
+  if (!s) return "";
+  s = s.replace(/\b(?:um+|uh+|erm+|hmm+)\b[,.]?\s*/gi, "");
+  s = s.replace(/[A-Za-z]+/g, w => SPOKEN_FIXES[w.toLowerCase()] ?? w);
+  s = s.replace(/\b([A-Za-z]+)(\s+\1\b)+/gi, "$1");
+  s = s.replace(/\s+([,.!?;:])/g, "$1").replace(/([,.!?;:])(?=[A-Za-z])/g, "$1 ");
+  s = s.replace(/(^|[.!?]\s+)([a-z])/g, (m, p, c) => p + c.toUpperCase());
+  s = s.replace(/\s+/g, " ").trim();
+  if (!/[.!?]$/.test(s)) s += ".";
+  return s;
+}
+
+// Turns raw entry text into saved entries. Gratitude may hold several "I'm grateful..." sentences.
+function cleanEntries(kind, texts) {
+  return texts.flatMap(t => {
+    const tidy = tidyText(t);
+    if (!tidy) return [];
+    return kind === "gratitude" ? splitGratitude(tidy) : [tidy];
+  });
+}
+
+const PENCIL_SVG = `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20h4L19 9l-4-4L4 16v4z"/><path d="M13.5 6.5l4 4"/></svg>`;
+const CHECK_SVG = `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12.5l4.2 4.2L19 7"/></svg>`;
+
+const currentEntries = kind => (entryState[kind].editing ? entryState[kind].draft : entryState[kind].items);
+
+// Takes the saved entries from the day's page, unless an editor is open (its draft is kept).
+function syncEntries() {
+  for (const kind of Object.keys(ENTRY_KINDS)) {
+    const s = entryState[kind];
+    if (s.editing) continue;
+    const saved = dayData[ENTRY_KINDS[kind].field];
+    s.items = Array.isArray(saved) ? saved : ENTRY_KINDS[kind].legacy(dayData);
+  }
+  renderAllEntries();
+}
+
+function renderAllEntries() {
+  for (const kind of Object.keys(ENTRY_KINDS)) {
+    renderEntries(kind);
+    setEntryButton(kind);
+  }
+}
+
+function renderEntries(kind) {
+  const s = entryState[kind];
+  const list = els.entryList[kind];
+  const items = currentEntries(kind);
+  list.innerHTML = "";
+  items.forEach((text, i) => {
+    if (!s.editing) { list.append(el("li", { text })); return; }
+    const input = el("input", {
+      class: "input entry-input", type: "text", maxlength: 500, "aria-label": "Entry " + (i + 1),
+      oninput: e => { s.draft[i] = e.target.value; }
+    });
+    input.value = text;
+    const del = el("button", {
+      type: "button", class: "m-del", "aria-label": "Delete entry", title: "Delete",
+      onclick: () => { s.draft.splice(i, 1); renderEntries(kind); }
+    });
+    del.innerHTML = TRASH_SVG;
+    list.append(el("li", {}, el("div", { class: "entry-row" }, input, del)));
+  });
+  els.entryEmpty[kind].hidden = items.length > 0;
+}
+
+function setEntryButton(kind) {
+  const editing = entryState[kind].editing;
+  const btn = els.entryEdit[kind];
+  btn.classList.toggle("is-editing", editing);
+  btn.innerHTML = editing ? CHECK_SVG : PENCIL_SVG;
+  btn.setAttribute("aria-label", editing ? "Save entries" : "Edit entries");
+  btn.title = editing ? "Save entries" : "Edit entries";
+}
+
+async function toggleEntryEdit(kind) {
+  if (!entryState[kind].editing) {
+    const s = entryState[kind];
+    s.editing = true;
+    s.draft = s.items.slice();
+    renderEntries(kind);
+    setEntryButton(kind);
+    return;
+  }
+  await finishEntryEdit(kind);
+}
+
+async function finishEntryEdit(kind) {
+  const s = entryState[kind];
+  const cleaned = cleanEntries(kind, s.draft);
+  s.editing = false;
+  s.items = cleaned;
+  renderEntries(kind);
+  setEntryButton(kind);
+  await saveEntries(kind, cleaned);
+}
+
+// Adds what is in the input box (typed or spoken) as one or more tidied entries.
+async function addEntryFromInput(kind) {
+  const input = els.entryInput[kind];
+  const parts = cleanEntries(kind, [input.value]);
+  input.value = "";
+  if (!parts.length) return;
+  const s = entryState[kind];
+  if (s.editing) {
+    s.draft.push(...parts);
+    renderEntries(kind);
+    return;
+  }
+  s.items = [...s.items, ...parts];
+  renderEntries(kind);
+  await saveEntries(kind, s.items);
+}
+
+async function saveEntries(kind, items) {
+  if (!user) return;
+  const key = viewKey;   // captured now, before any await
+  setStatus("Saving...", "saving");
+  try {
+    await setDoc(dayRef(user.uid, key), { [ENTRY_KINDS[kind].field]: items, updatedAt: serverTimestamp() }, { merge: true });
+    setStatus("All changes saved");
+  } catch (err) {
+    setStatus("Not saved yet", "error");
+    toast("Could not save entries: " + err.message);
+  }
+}
+
+for (const kind of Object.keys(ENTRY_KINDS)) {
+  els.entryInput[kind].addEventListener("keydown", e => {
+    if (e.key === "Enter") { e.preventDefault(); addEntryFromInput(kind); }
+  });
+  els.entryEdit[kind].addEventListener("click", () => toggleEntryEdit(kind));
 }
 
 /* ==========================================================================
@@ -440,7 +613,9 @@ function renderGratitudeList() {
 
 function renderDate() {
   const isToday = viewKey === today;
-  els.dateLong.textContent = isToday ? `Today, ${longDate(viewKey)}` : longDate(viewKey);
+  els.dateLong.textContent = longDate(viewKey);
+  // Under the date: "Today" on today's page, otherwise the "Back to today" button.
+  els.todayLabel.hidden = !isToday;
   els.jumpToday.hidden = isToday;
   els.next.disabled = viewKey >= today;
 }
@@ -453,7 +628,7 @@ function goToDay(key) {
   renderDate();
   renderQuote();
   if (user) subscribeDay();
-  renderCompleted();
+  renderBlueprint();
 }
 
 function rolloverIfNewDay() {
@@ -600,21 +775,37 @@ function attachSpeech(btn, field, onEnd) {
 }
 
 taskSpeech = attachSpeech($('[data-speech="task"]'), els.taskInput);
-attachSpeech($('[data-speech="gratitude"]'), els.gratitude, () => flushSave());
-attachSpeech($('[data-speech="frustrations"]'), els.frustrations, () => flushSave());
+// Stopping the mic adds what was said as an entry (tidied up first).
+attachSpeech($('[data-speech="gratitude"]'), els.entryInput.gratitude, () => addEntryFromInput("gratitude"));
+attachSpeech($('[data-speech="release"]'), els.entryInput.release, () => addEntryFromInput("release"));
 
 /* ==========================================================================
    Rating (medal names, original names underneath)
    ========================================================================== */
 
+// Press feedback for the rating cards. Tracked in script, because phone browsers do not always
+// apply the :active style to a touch. The class is removed when the finger lifts or the touch is cancelled.
+els.ratings.addEventListener("pointerdown", e => {
+  const card = e.target.closest(".rating");
+  if (card) card.classList.add("is-pressed");
+});
+const releasePressed = () => { els.ratings.querySelectorAll(".is-pressed").forEach(c => c.classList.remove("is-pressed")); };
+window.addEventListener("pointerup", releasePressed);
+window.addEventListener("pointercancel", releasePressed);
+
 function renderRatings() {
   els.ratings.innerHTML = "";
   for (const r of RATINGS) {
     const selected = dayData.rating === r.key;
-    els.ratings.append(el("button", {
-      type: "button", class: "rating", role: "radio",
-      "aria-checked": String(selected), style: { "--c": r.color },
-      onclick: () => setRating(selected ? null : r.key)
+    // The whole card is the tap target. Tapping it selects this rating, or clears it if it is already selected.
+    // Saving the new rating re-renders the row, so every other card unselects itself.
+    const toggle = () => setRating(selected ? null : r.key);
+    els.ratings.append(el("div", {
+      class: selected ? "rating is-selected" : "rating", style: { "--c": r.color },
+      role: "button", tabindex: "0", "aria-pressed": String(selected),
+      "aria-label": `${r.metal}, ${r.title}. ${selected ? "Selected. Tap to clear." : "Tap to select."}`,
+      onclick: toggle,
+      onkeydown: e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); toggle(); } }
     },
       badgeIcon(r),
       el("span", { class: "r-name", text: r.metal }),
@@ -684,8 +875,23 @@ els.showBuckets.addEventListener("click", () => showView("buckets"));
 els.addMore.addEventListener("click", () => showView("dump"));
 
 function renderBlueprint() {
-  renderDump();
-  renderPrioritize();
+  const past = isPastView();
+  // Always shown, so a past day keeps its priority buckets even when no tasks were pending.
+  els.blueprintCard.hidden = false;
+  els.openManager.hidden = past;
+  els.pastNote.hidden = !past;
+  els.addMore.hidden = past;
+  if (past) {
+    els.viewDump.hidden = true;
+    els.viewPrioritize.hidden = true;
+    els.viewBuckets.hidden = false;
+  } else if (view) {
+    els.viewDump.hidden = view !== "dump";
+    els.viewPrioritize.hidden = view !== "prioritize";
+    els.viewBuckets.hidden = view !== "buckets";
+    renderDump();
+    renderPrioritize();
+  }
   renderBoard();
   renderCompleted();
 }
@@ -715,9 +921,11 @@ function renderPrioritize() {
 
 function renderBoard() {
   renderBucketNav();
-  const sorted = sortedTasks();
+  const sorted = boardTasks();
+  const past = isPastView();
   els.buckets.innerHTML = "";
-  els.bucketsEmpty.hidden = sorted.length > 0;
+  els.buckets.classList.toggle("is-readonly", past);
+  els.bucketsEmpty.hidden = sorted.length > 0 || past;
 
   for (const p of PRIORITIES) {
     const items = sorted.filter(t => t.priority === p.key);
@@ -729,34 +937,45 @@ function renderBoard() {
       ),
       el("p", { class: "bucket-hint", text: p.hint }),
       el("ul", { class: "bucket-list", "data-priority": p.key },
-        items.length ? items.map(t => taskItem(t)) : [el("li", { class: "bucket-empty", text: "Nothing here" })]
+        items.length ? items.map(t => taskItem(t, past)) : [el("li", { class: "bucket-empty", text: "Nothing here" })]
       )
     ));
   }
 }
 
-function taskItem(t) {
+function taskItem(t, readOnly = false) {
   const color = (PRIORITY_BY_KEY[t.priority] || UNSORTED).color;
+  const check = readOnly ? null : el("button", {
+    type: "button", class: "check", "aria-label": "Mark as done", title: "Done",
+    onclick: e => completeTask(t.id, e.currentTarget.closest("li"))
+  }, checkSvg());
+  const label = carriedLabel(t, viewKey);
   return el("li", { class: "task", "data-id": t.id, style: { "--c": color } },
-    el("button", {
-      type: "button", class: "check", "aria-label": "Mark as done", title: "Done",
-      onclick: e => completeTask(t.id, e.currentTarget.closest("li"))
-    }, checkSvg()),
+    check,
     el("div", { class: "task-text" },
       t.text,
-      el("span", { class: "task-meta" }, el("span", { class: t.createdOn < today ? "carry" : "", text: carriedLabel(t) }))
+      el("span", { class: "task-meta" }, el("span", { class: t.createdOn < viewKey ? "carry" : "", text: label }))
     )
   );
 }
 
-function carriedLabel(t) {
-  const days = t.createdOn ? daysBetween(t.createdOn, today) : 0;
-  if (days <= 0) return "Added today";
-  return `Carried ${days} day${days === 1 ? "" : "s"}, from ${shortDate(t.createdOn)}`;
+// Carried tasks say how long ago they were added, relative to the page being shown.
+// Tasks added on that same day show no label.
+function carriedLabel(t, refKey = today) {
+  const days = t.createdOn ? daysBetween(t.createdOn, refKey) : 0;
+  const plural = n => (n === 1 ? "" : "s");
+  if (days <= 0) return "";
+  if (days === 1) return "From yesterday";
+  if (days === 2) return "From the day before yesterday";
+  if (days < 7) return `From ${days} days ago`;
+  if (days < 30) { const w = Math.floor(days / 7); return `From ${w} week${plural(w)} ago`; }
+  if (days < 365) { const m = Math.floor(days / 30); return `From ${m} month${plural(m)} ago`; }
+  const y = Math.floor(days / 365);
+  return `From ${y} year${plural(y)} ago`;
 }
 
 async function completeTask(id, li) {
-  if (!user) return;
+  if (!user || isPastView()) return;
   li?.classList.add("leaving");
   await sleep(230);
   try {
@@ -1034,7 +1253,7 @@ function enableBucketDrag() {
   const HOLD_MS = 220;
 
   board.addEventListener("pointerdown", e => {
-    if (e.button > 0) return;
+    if (e.button > 0 || isPastView()) return;
     const item = e.target.closest("li.task");
     if (!item || e.target.closest(".check")) return;
 
@@ -1266,5 +1485,5 @@ renderDate();
 renderQuote();
 renderRatings();
 renderSubmitState();
-renderGratitudeList();
+renderAllEntries();
 renderBlueprint();
