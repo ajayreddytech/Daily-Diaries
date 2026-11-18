@@ -526,9 +526,11 @@ function renderEntries(kind) {
   list.innerHTML = "";
   items.forEach((text, i) => {
     if (!s.editing) { list.append(el("li", { text })); return; }
-    const input = el("input", {
-      class: "input entry-input", type: "text", maxlength: 500, "aria-label": "Entry " + (i + 1),
-      oninput: e => { s.draft[i] = e.target.value; }
+    // A wrapping box that grows to show the whole entry at a glance (Enter adds no new line).
+    const input = el("textarea", {
+      class: "input entry-input", rows: 2, maxlength: 500, "aria-label": "Entry " + (i + 1),
+      oninput: e => { s.draft[i] = e.target.value; fitEntryInput(e.target); },
+      onkeydown: e => { if (e.key === "Enter") e.preventDefault(); }
     });
     input.value = text;
     const del = el("button", {
@@ -537,8 +539,15 @@ function renderEntries(kind) {
     });
     del.innerHTML = TRASH_SVG;
     list.append(el("li", {}, el("div", { class: "entry-row" }, input, del)));
+    fitEntryInput(input);
   });
   els.entryEmpty[kind].hidden = items.length > 0;
+}
+
+// Sizes an entry's edit box to its full text, so nothing is hidden behind a scroll.
+function fitEntryInput(box) {
+  box.style.height = "auto";
+  box.style.height = box.scrollHeight + "px";
 }
 
 function setEntryButton(kind) {

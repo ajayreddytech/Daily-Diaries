@@ -1186,6 +1186,8 @@ button:disabled { cursor: not-allowed; opacity: 0.45; }
 .entry-edit-btn.is-editing { color: var(--success); border-color: var(--success); }
 .entry-row { display: flex; align-items: center; gap: 8px; }
 .entry-row .entry-input { flex: 1; min-width: 0; height: 38px; }
+/* Edit box: wraps the whole entry and grows with it (height is set by the script). */
+.entry-row textarea.entry-input { height: auto; min-height: 96px; resize: none; line-height: 1.5; padding: 10px 12px; overflow: hidden; }
 /* Entries carry a small star instead of a number or dot. */
 .numbered-list.star-list { display: block; padding-left: 0; list-style: none; }
 .numbered-list.star-list li {
