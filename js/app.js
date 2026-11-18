@@ -8,7 +8,7 @@ import {
   signOut, setPersistence, indexedDBLocalPersistence
 } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-auth.js";
 import {
-  initializeFirestore, persistentLocalCache, persistentMultipleTabManager,
+  initializeFirestore, memoryLocalCache,
   doc, collection, onSnapshot, setDoc, updateDoc, deleteDoc, addDoc, writeBatch,
   serverTimestamp
 } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore.js";
@@ -72,9 +72,11 @@ if (configured) {
   auth = getAuth(app);
   // Keep the sign-in in IndexedDB (not localStorage).
   setPersistence(auth, indexedDBLocalPersistence).catch(() => {});
-  // Offline-capable Firestore cache, stored in IndexedDB.
+  // Firestore is the only place data is stored. The cache lives in memory
+  // for this session only, so nothing is kept in the browser between visits.
+  // Every device reads the same Firestore data, so all devices stay in sync.
   db = initializeFirestore(app, {
-    localCache: persistentLocalCache({ tabManager: persistentMultipleTabManager() })
+    localCache: memoryLocalCache()
   });
 }
 

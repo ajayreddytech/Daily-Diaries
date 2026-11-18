@@ -82,6 +82,6 @@ Speech is sent to the browser's speech service, the same as any dictation featur
 ## Notes
 
 - Sign-in state is kept in IndexedDB by Firebase Auth. No cookies are required.
-- Firestore's offline cache also uses IndexedDB. Writes made offline sync when you reconnect.
+- Firestore is the only place your data is stored. The Firestore cache is memory-only, so nothing is kept in the browser between visits. Every device reads the same Firestore data, so all devices stay in sync. Writes made while offline are not kept across a reload; the app needs a connection to save.
 - Quotes are a fixed list in `js/quotes.js`. Day N of the year shows quote N (cycling every 365 days).
 - Attributions for well-known quotes are commonly cited; double-check any you plan to publish.

@@ -263,6 +263,23 @@ button:disabled { cursor: not-allowed; opacity: 0.45; }
   gap: clamp(26px, 4vw, 38px);
 }
 
+/* Page code: plain text under the date, no box. */
+.page-code {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  margin-top: 3px;
+  font-size: 0.7rem;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--text-faint);
+  white-space: nowrap;
+}
+.page-flag { color: var(--success); }
+.page-flag::before { content: "\2022  "; }
+
 .page-status {
   display: flex;
   align-items: center;

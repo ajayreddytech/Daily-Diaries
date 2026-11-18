@@ -57,6 +57,10 @@
         <div class="date-display">
           <span id="page-date-long">Today</span>
           <button class="link-btn" id="jump-today" hidden>Back to today</button>
+          <div class="page-code" aria-live="polite">
+            <span id="save-status" class="save-status">All changes saved</span>
+            <span id="submitted-badge" class="page-flag" hidden>Submitted</span>
+          </div>
         </div>
         <button class="icon-btn" id="next-day" aria-label="Next day">
           <svg viewBox="0 0 24 24"><path d="M9 6l6 6-6 6"/></svg>
@@ -70,11 +74,6 @@
     </header>
 
     <main class="page">
-
-      <div class="page-status">
-        <span id="save-status" class="save-status">All changes saved</span>
-        <span id="submitted-badge" class="badge" hidden>Page submitted</span>
-      </div>
 
       <!-- 1. Quote of the day -->
       <section class="card quote-card" aria-labelledby="quote-title">
