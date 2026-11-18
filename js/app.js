@@ -130,6 +130,7 @@ let pendingRender = false;
 let taskSpeech = null;
 let managerSpeech = null;
 let activeMicStop = null;       // stops whichever microphone is currently on
+let bucketIndex = 0;            // which priority bucket is shown (0-3)
 
 /* ==========================================================================
    DOM refs
@@ -170,6 +171,9 @@ const els = {
   showBuckets: $("#show-buckets"),
   addMore: $("#add-more"),
   buckets: $("#buckets"),
+  bucketPrev: $("#bucket-prev"),
+  bucketNext: $("#bucket-next"),
+  bucketCurrent: $("#bucket-current"),
   bucketsEmpty: $("#buckets-empty"),
   completed: $("#completed-today"),
   completedCount: $("#completed-count"),
@@ -710,13 +714,15 @@ function renderPrioritize() {
 }
 
 function renderBoard() {
+  renderBucketNav();
   const sorted = sortedTasks();
   els.buckets.innerHTML = "";
   els.bucketsEmpty.hidden = sorted.length > 0;
 
   for (const p of PRIORITIES) {
     const items = sorted.filter(t => t.priority === p.key);
-    els.buckets.append(el("section", { class: "bucket bucket-" + p.key, style: { "--c": p.color }, "aria-label": p.label },
+    const hidden = PRIORITIES.indexOf(p) !== bucketIndex;
+    els.buckets.append(el("section", { class: "bucket bucket-" + p.key + (hidden ? " is-hidden" : ""), style: { "--c": p.color }, "aria-label": p.label },
       el("div", { class: "bucket-head" },
         el("span", { class: "bucket-title", text: p.label }),
         el("span", { class: "bucket-count", text: String(items.length) })
@@ -1048,6 +1054,8 @@ function beginBucketDrag(item, sx, sy) {
   dragging = true;
   document.body.style.userSelect = "none";
 
+  els.buckets.classList.add("dragging-all");   // show every bucket while dragging
+
   // Stop the page scrolling and the long-press menu while a task is being dragged.
   const preventScroll = ev => { if (ev.cancelable) ev.preventDefault(); };
   const preventMenu = ev => ev.preventDefault();
@@ -1096,9 +1104,46 @@ function beginBucketDrag(item, sx, sy) {
       else item.setAttribute("style", originalStyle);
       document.body.style.userSelect = "";
       dragging = false;
+      els.buckets.classList.remove("dragging-all");
       saveBucketOrder();
     }
   };
+}
+
+/* One priority bucket at a time: arrows (laptop) and sideways swipes (phone). */
+function renderBucketNav() {
+  const p = PRIORITIES[bucketIndex];
+  els.bucketCurrent.textContent = "";
+  els.bucketCurrent.style.setProperty("--c", p.color);
+  els.bucketCurrent.append(p.label, el("small", { text: `${bucketIndex + 1} of ${PRIORITIES.length}` }));
+  els.bucketPrev.disabled = bucketIndex === 0;
+  els.bucketNext.disabled = bucketIndex === PRIORITIES.length - 1;
+}
+
+function shiftBucket(step) {
+  const next = Math.min(PRIORITIES.length - 1, Math.max(0, bucketIndex + step));
+  if (next === bucketIndex) return;
+  bucketIndex = next;
+  renderBoard();
+}
+
+els.bucketPrev.addEventListener("click", () => shiftBucket(-1));
+els.bucketNext.addEventListener("click", () => shiftBucket(1));
+
+// Sideways swipe on a phone or tablet. Vertical swipes still scroll the page.
+function enableBucketSwipe() {
+  let pid = null, sx = 0, sy = 0;
+  els.buckets.addEventListener("pointerdown", e => {
+    if (e.pointerType !== "touch") return;
+    pid = e.pointerId; sx = e.clientX; sy = e.clientY;
+  });
+  window.addEventListener("pointerup", e => {
+    if (pid === null || e.pointerId !== pid) return;
+    pid = null;
+    if (dragging) return;   // a task drag, not a swipe
+    const dx = e.clientX - sx, dy = e.clientY - sy;
+    if (Math.abs(dx) > 50 && Math.abs(dx) > Math.abs(dy) * 1.5) shiftBucket(dx < 0 ? 1 : -1);
+  });
 }
 
 // Writes the new order and priorities from what is now on the board.
@@ -1129,6 +1174,7 @@ async function saveBucketOrder() {
 }
 
 enableBucketDrag();
+enableBucketSwipe();
 
 /* Manager add row: text or voice, Enter saves, mic stays on until closed. */
 function buildManagerAddRow() {

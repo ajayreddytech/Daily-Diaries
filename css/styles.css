@@ -328,7 +328,7 @@ button:disabled { cursor: not-allowed; opacity: 0.45; }
 }
 
 /* Quote: plain text on the page, no box */
-.quote-plain { padding: 0 4px; }
+.quote-plain { padding: 0 4px; text-align: center; }
 .quote-label {
   font-size: 0.75rem;
   font-weight: 700;
@@ -337,7 +337,8 @@ button:disabled { cursor: not-allowed; opacity: 0.45; }
   color: var(--text-faint);
   margin-bottom: 10px;
 }
-.quote { margin: 0; text-align: left; }
+.quote { margin: 0; text-align: center; }
+.quote footer { display: block; text-align: center; }
 .quote p {
   font-family: var(--font-display);
   font-size: clamp(1.15rem, 2.4vw, 1.6rem);
@@ -426,17 +427,15 @@ button:disabled { cursor: not-allowed; opacity: 0.45; }
 }
 
 /* One row of buckets: a horizontal scroller on narrow screens, four columns on wide ones. */
+/* One priority bucket at a time. Arrows (laptop) or swipes (phone) move between them. */
 .buckets {
   display: flex;
-  gap: 14px;
-  overflow-x: auto;
-  scroll-snap-type: x proximity;
-  padding-bottom: 6px;
-  -webkit-overflow-scrolling: touch;
+  overflow: hidden;
+  touch-action: pan-y;   /* vertical scrolling stays; sideways swipes reach the app */
 }
 .bucket {
-  flex: 0 0 min(260px, 78vw);
-  scroll-snap-align: start;
+  flex: 0 0 100%;
+  min-width: 0;
   background: var(--bg);
   border: 1px solid var(--border-soft);
   border-top: 3px solid var(--c);
@@ -1183,13 +1182,36 @@ button:disabled { cursor: not-allowed; opacity: 0.45; }
   .page { padding-top: 26px; }
 }
 
-@media (min-width: 1000px) {
-  .buckets {
-    display: grid;
-    grid-template-columns: repeat(4, minmax(0, 1fr));
-    overflow: visible;
-  }
-  .bucket { flex: none; }
+/* While a task is being dragged, all four buckets show in a row so it can be dropped into any of them. */
+.buckets.dragging-all { overflow-x: auto; }
+.buckets.dragging-all .bucket { flex: 0 0 min(260px, 78vw); }
+.buckets.dragging-all .bucket.is-hidden { display: block; }
+.bucket.is-hidden { display: none; }
+
+.bucket-nav {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+.bucket-current {
+  flex: 1;
+  text-align: center;
+  font-family: var(--font-display);
+  font-size: 1.2rem;
+  font-weight: 700;
+  color: var(--c, var(--text));
+  min-width: 0;
+}
+.bucket-current small {
+  display: block;
+  font-family: var(--font-body);
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--text-faint);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
 }
 
 @media (max-width: 680px) {

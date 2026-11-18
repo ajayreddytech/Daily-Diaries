@@ -169,6 +169,15 @@
 
         <!-- Step 3: buckets -->
         <div id="view-buckets" class="blueprint-view" hidden>
+          <div class="bucket-nav" aria-label="Priority buckets">
+            <button class="icon-btn" id="bucket-prev" aria-label="Previous priority bucket">
+              <svg viewBox="0 0 24 24"><path d="M15 6l-6 6 6 6"/></svg>
+            </button>
+            <div class="bucket-current" id="bucket-current" aria-live="polite"></div>
+            <button class="icon-btn" id="bucket-next" aria-label="Next priority bucket">
+              <svg viewBox="0 0 24 24"><path d="M9 6l6 6-6 6"/></svg>
+            </button>
+          </div>
           <div class="buckets" id="buckets"></div>
           <p id="buckets-empty" class="empty" hidden>No prioritised tasks yet. Dump your to-dos, then prioritise them.</p>
           <div class="view-actions">
