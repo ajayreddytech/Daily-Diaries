@@ -55,7 +55,7 @@ const entryState = {
 };
 const GRATITUDE_SPLIT = /(?=\bI\s*(?:['’]\s*m|\s+am)\s+grateful\b)/i;
 // Diamond badge with a floating gem, a light sweep and twinkling sparkles (animated in styles.css).
-const DIAMOND_SVG = `<svg class="badge-icon diamond" viewBox="0 0 64 64" aria-hidden="true"><defs><linearGradient id="dia-grad" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#F0FBFF"/><stop offset="0.5" stop-color="#7DD3FC"/><stop offset="1" stop-color="#38BDF8"/></linearGradient><clipPath id="dia-clip"><path d="M32 6 L56 26 L32 58 L8 26 Z"/></clipPath></defs><g class="gem"><path d="M32 6 L56 26 L32 58 L8 26 Z" fill="url(#dia-grad) #7DD3FC"/><path d="M8 26 H56 M22 26 L32 6 L42 26 M22 26 L32 58 L42 26" fill="none" stroke="rgba(255,255,255,0.6)" stroke-width="1.4" stroke-linejoin="round"/><g clip-path="url(#dia-clip)"><rect class="shine" x="0" y="0" width="9" height="64" fill="rgba(255,255,255,0.85)"/></g></g><path class="spark s1" d="M54 4 L55.6 8.4 L60 10 L55.6 11.6 L54 16 L52.4 11.6 L48 10 L52.4 8.4 Z" fill="#ffffff"/><path class="spark s2" d="M10 2 L11.2 5.2 L14.4 6.4 L11.2 7.6 L10 10.8 L8.8 7.6 L5.6 6.4 L8.8 5.2 Z" fill="#ffffff"/><path class="spark s3" d="M58 44 L59 46.6 L61.6 47.6 L59 48.6 L58 51.2 L57 48.6 L54.4 47.6 L57 46.6 Z" fill="#E0F7FF"/></svg>`;
+const DIAMOND_SVG = `<svg class="badge-icon diamond" viewBox="0 0 64 64" aria-hidden="true"><defs><linearGradient id="dia-grad" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#F0FBFF"/><stop offset="0.5" stop-color="#7DD3FC"/><stop offset="1" stop-color="#38BDF8"/></linearGradient><clipPath id="dia-clip"><path d="M32 6 L56 26 L32 58 L8 26 Z"/></clipPath></defs><g class="gem"><path d="M32 6 L56 26 L32 58 L8 26 Z" fill="url(#dia-grad)"/><path d="M8 26 H56 M22 26 L32 6 L42 26 M22 26 L32 58 L42 26" fill="none" stroke="rgba(255,255,255,0.6)" stroke-width="1.4" stroke-linejoin="round"/><g clip-path="url(#dia-clip)"><rect class="shine" x="0" y="0" width="9" height="64" fill="rgba(255,255,255,0.85)"/></g></g><path class="spark s1" d="M54 4 L55.6 8.4 L60 10 L55.6 11.6 L54 16 L52.4 11.6 L48 10 L52.4 8.4 Z" fill="#ffffff"/><path class="spark s2" d="M10 2 L11.2 5.2 L14.4 6.4 L11.2 7.6 L10 10.8 L8.8 7.6 L5.6 6.4 L8.8 5.2 Z" fill="#ffffff"/><path class="spark s3" d="M58 44 L59 46.6 L61.6 47.6 L59 48.6 L58 51.2 L57 48.6 L54.4 47.6 L57 46.6 Z" fill="#E0F7FF"/></svg>`;
 // Star-shaped badges for the Golden, Silver and Rusty iron days.
 const BIG_STAR = "M32 4 L39.5 22.5 L59 24.5 L44 37.5 L48.5 57 L32 46.5 L15.5 57 L20 37.5 L5 24.5 L24.5 22.5 Z";
 const SPARK_L = `<path class="spark s1" d="M54 4 L55.6 8.4 L60 10 L55.6 11.6 L54 16 L52.4 11.6 L48 10 L52.4 8.4 Z" fill="#FFFBEB"/>`;
@@ -337,6 +337,8 @@ if (!configured) {
       startListeners();
       renderDate();
       renderQuote();
+      // Rebuild the medals now the app is visible. Cards built while the app was hidden can show blank.
+      els.ratings.innerHTML = "";
       renderRatings();
     } else {
       user = null;
@@ -794,24 +796,30 @@ window.addEventListener("pointerup", releasePressed);
 window.addEventListener("pointercancel", releasePressed);
 
 function renderRatings() {
-  els.ratings.innerHTML = "";
-  for (const r of RATINGS) {
+  // Build the medal cards once. Later renders only update their state, so the medals
+  // are not recreated on every save (which restarted their animations and made the screen blink).
+  if (!els.ratings.children.length) {
+    for (const r of RATINGS) {
+      const toggle = () => setRating(dayData.rating === r.key ? null : r.key);
+      els.ratings.append(el("div", {
+        class: "rating", "data-key": r.key, style: { "--c": r.color },
+        role: "button", tabindex: "0",
+        onclick: toggle,
+        onkeydown: e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); toggle(); } }
+      },
+        badgeIcon(r),
+        el("span", { class: "r-name", text: r.metal }),
+        el("span", { class: "r-sub", text: r.title }),
+        el("span", { class: "r-desc", text: r.desc })
+      ));
+    }
+  }
+  for (const card of els.ratings.children) {
+    const r = RATINGS.find(x => x.key === card.dataset.key);
     const selected = dayData.rating === r.key;
-    // The whole card is the tap target. Tapping it selects this rating, or clears it if it is already selected.
-    // Saving the new rating re-renders the row, so every other card unselects itself.
-    const toggle = () => setRating(selected ? null : r.key);
-    els.ratings.append(el("div", {
-      class: selected ? "rating is-selected" : "rating", style: { "--c": r.color },
-      role: "button", tabindex: "0", "aria-pressed": String(selected),
-      "aria-label": `${r.metal}, ${r.title}. ${selected ? "Selected. Tap to clear." : "Tap to select."}`,
-      onclick: toggle,
-      onkeydown: e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); toggle(); } }
-    },
-      badgeIcon(r),
-      el("span", { class: "r-name", text: r.metal }),
-      el("span", { class: "r-sub", text: r.title }),
-      el("span", { class: "r-desc", text: r.desc })
-    ));
+    card.classList.toggle("is-selected", selected);
+    card.setAttribute("aria-pressed", String(selected));
+    card.setAttribute("aria-label", `${r.metal}, ${r.title}. ${selected ? "Selected. Tap to clear." : "Tap to select."}`);
   }
 }
 
@@ -1381,7 +1389,13 @@ function shiftBucket(step) {
   const next = Math.min(PRIORITIES.length - 1, Math.max(0, bucketIndex + step));
   if (next === bucketIndex) return;
   bucketIndex = next;
-  renderBoard();
+  showBucketPanel();
+}
+
+// Swiping only changes which bucket is visible. The tasks are not rebuilt.
+function showBucketPanel() {
+  renderBucketNav();
+  els.buckets.querySelectorAll(":scope > .bucket").forEach((b, i) => b.classList.toggle("is-hidden", i !== bucketIndex));
 }
 
 els.bucketPrev.addEventListener("click", () => shiftBucket(-1));

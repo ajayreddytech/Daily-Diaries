@@ -472,11 +472,12 @@ button:disabled { cursor: not-allowed; opacity: 0.45; }
 /* One row of buckets: a horizontal scroller on narrow screens, four columns on wide ones. */
 /* One priority bucket at a time. Arrows (laptop) or swipes (phone) move between them. */
 .buckets {
-  display: flex;
+  display: grid;
   overflow: hidden;
   touch-action: pan-y;   /* vertical scrolling stays; sideways swipes reach the app */
 }
 .bucket {
+  grid-area: 1 / 1;
   flex: 0 0 100%;
   min-width: 0;
   background: var(--bg);
@@ -916,6 +917,7 @@ button:disabled { cursor: not-allowed; opacity: 0.45; }
   background-size: 220px 220px;
 }
 .stars-far {
+  will-change: transform, opacity;
   background-image:
     radial-gradient(1px 1px at 20px 30px, rgba(255, 255, 255, 0.75), transparent),
     radial-gradient(1px 1px at 90px 120px, rgba(226, 232, 240, 0.6), transparent),
@@ -925,6 +927,7 @@ button:disabled { cursor: not-allowed; opacity: 0.45; }
   animation: star-drift 220s linear infinite, twinkle-soft 4s ease-in-out infinite alternate;
 }
 .stars-near {
+  will-change: transform, opacity;
   background-image:
     radial-gradient(1.6px 1.6px at 60px 80px, rgba(253, 230, 138, 0.9), transparent),
     radial-gradient(1.5px 1.5px at 150px 20px, rgba(186, 230, 253, 0.9), transparent),
@@ -932,7 +935,7 @@ button:disabled { cursor: not-allowed; opacity: 0.45; }
     radial-gradient(1.4px 1.4px at 200px 110px, rgba(255, 255, 255, 0.8), transparent);
   animation: star-drift 120s linear infinite, twinkle-soft 2.6s ease-in-out infinite alternate;
 }
-@keyframes star-drift { to { background-position: 220px 220px; } }
+@keyframes star-drift { to { transform: translate(220px, 220px); } }
 @keyframes twinkle-soft { from { opacity: 0.45; } to { opacity: 1; } }
 
 .moon {
@@ -1162,10 +1165,11 @@ button:disabled { cursor: not-allowed; opacity: 0.45; }
 }
 
 /* While a task is being dragged, all four buckets show in a row so it can be dropped into any of them. */
-.buckets.dragging-all { overflow-x: auto; }
+.buckets.dragging-all { display: flex; overflow-x: auto; }
 .buckets.dragging-all .bucket { flex: 0 0 min(260px, 78vw); }
-.buckets.dragging-all .bucket.is-hidden { display: block; }
-.bucket.is-hidden { display: none; }
+.buckets.dragging-all .bucket.is-hidden { visibility: visible; pointer-events: auto; }
+/* Hidden buckets keep their space (so the page never jumps when you swipe), but are not shown. */
+.bucket.is-hidden { visibility: hidden; pointer-events: none; }
 
 /* Entries: gratitude and letting go (speak or type, then edit) */
 .entry-input-row { margin-bottom: 6px; }
@@ -1291,3 +1295,28 @@ button:disabled { cursor: not-allowed; opacity: 0.45; }
   font-size: 0.68rem;
   line-height: 1.25;
 }
+
+/* ---------- Phones and touch screens: keep scrolling and taps smooth ----------
+   Blur and repainting animations are the costly parts on phones, so they are switched off there.
+   The look stays the same, just flatter. */
+@media (max-width: 900px), (hover: none) {
+  .card, .topbar, .modal-backdrop {
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+  }
+  .card { background: linear-gradient(180deg, rgba(19, 27, 46, 0.94), rgba(15, 21, 36, 0.96)); }
+  .aurora, .moon, .shoot { animation: none; }
+  .aurora { filter: none; }
+  .shoot { display: none; }
+  .bucket, .bucket-hint, .bucket-okay .bucket-hint, .bucket-urgent .bucket-hint { animation: none; }
+  .bucket-title {
+    animation: none;
+    background: none;
+    -webkit-text-fill-color: currentColor;
+    color: var(--c);
+  }
+  .badge-icon { filter: none; }
+  .badge-icon path[filter] { filter: none; }
+  .badge-icon .shine, .badge-icon .sheen { display: none; }
+}
+
