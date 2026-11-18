@@ -512,6 +512,7 @@ button:disabled { cursor: not-allowed; opacity: 0.45; }
   transition: opacity .2s, filter .2s, transform .2s;
 }
 .rating .r-name { font-weight: 700; color: var(--c); }
+.rating .r-sub { font-size: 0.82rem; font-weight: 600; color: var(--text-dim); }
 .rating .r-desc { font-size: 0.78rem; color: var(--text-faint); line-height: 1.35; }
 .rating[aria-checked="true"] {
   border-color: var(--c);
@@ -523,6 +524,60 @@ button:disabled { cursor: not-allowed; opacity: 0.45; }
   transform: scale(1.08);
   filter: drop-shadow(0 0 8px var(--c));
 }
+
+/* ---------- Gratitude numbered entries ---------- */
+.numbered-wrap { margin-top: 14px; }
+.mini-title {
+  font-size: 0.8rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-faint);
+  margin-bottom: 6px;
+}
+.numbered-list {
+  margin: 0;
+  padding-left: 1.6em;
+  display: grid;
+  gap: 8px;
+  color: var(--text);
+  line-height: 1.5;
+}
+.numbered-list li::marker { color: var(--gold); font-weight: 700; }
+.numbered-list li { overflow-wrap: anywhere; }
+
+/* ---------- Blueprint views ---------- */
+.blueprint-view { display: grid; gap: 14px; }
+.blueprint-view[hidden] { display: none !important; }
+.view-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.view-actions .muted { margin-right: auto; }
+.view-actions .btn { min-width: 150px; }
+.dump-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 8px;
+}
+.dump-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: var(--bg);
+  border: 1px solid var(--border-soft);
+}
+.dump-text { min-width: 0; overflow-wrap: anywhere; }
+.prioritize-list { max-height: 60dvh; }
+.m-del { flex-shrink: 0; }
 
 /* ---------- Submit ---------- */
 .submit-row {

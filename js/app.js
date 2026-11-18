@@ -26,17 +26,20 @@ const PRIORITIES = [
   { key: "none",     label: "Not a priority",  color: "#94a3b8", hint: "Only if there is time" },
   { key: "whenever", label: "Whenever I can",  color: "#a78bfa", hint: "No deadline, no pressure" }
 ];
-const UNSORTED = { key: null, label: "Decide later", color: "#475569", hint: "Not sorted yet" };
+const UNSORTED = { key: null, label: "Not sorted", color: "#475569", hint: "Not prioritised yet" };
 const PRIORITY_BY_KEY = Object.fromEntries(PRIORITIES.map(p => [p.key, p]));
 
+// Ratings are shown with a medal name first and the original day name second.
+// Keys are unchanged, so existing saved ratings still match.
 const RATINGS = [
-  { key: "wasted",  name: "Wasted day",  desc: "A flop. Nothing went to plan.",                       color: "#ef4444" },
-  { key: "average", name: "Average day", desc: "Some done, some not. Nothing spent, nothing bad.",    color: "#60a5fa" },
-  { key: "best",    name: "Best day",    desc: "Good use of everything. I feel happy.",              color: "#34d399" },
-  { key: "gold",    name: "Golden day",  desc: "Achieved something, made a difference, stood out.",   color: "#facc15" }
+  { key: "gold",    metal: "Golden day", title: "Stood out",   desc: "I achieved something, made a difference, and this day stood out.", color: "#facc15" },
+  { key: "best",    metal: "Silver day", title: "Best day",    desc: "I made good use of everything and I feel happy.",                   color: "#cbd5e1" },
+  { key: "average", metal: "Bronze day", title: "Average day", desc: "Some done, some not. Nothing spent, nothing bad.",                 color: "#d97706" },
+  { key: "wasted",  metal: "Iron day",   title: "Wasted day",  desc: "A flop. The day was totally wasted.",                              color: "#64748b" }
 ];
 
 const FIELDS = ["gratitude", "frustrations"];
+const GRATITUDE_SPLIT = /(?=\bI\s*(?:['’]\s*m|\s+am)\s+grateful\b)/i;
 const STAR_PATH = "M12 2.5l2.9 6.1 6.6.8-4.9 4.6 1.3 6.6L12 17.3 6.1 20.6l1.3-6.6-4.9-4.6 6.6-.8z";
 const DOTS_SVG = `<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="9" cy="6" r="1.7"/><circle cx="15" cy="6" r="1.7"/><circle cx="9" cy="12" r="1.7"/><circle cx="15" cy="12" r="1.7"/><circle cx="9" cy="18" r="1.7"/><circle cx="15" cy="18" r="1.7"/></svg>`;
 const TRASH_SVG = `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13"/></svg>`;
@@ -65,6 +68,28 @@ const tasksCol = uid => collection(db, "users", uid, "tasks");
 const taskRef = (uid, id) => doc(db, "users", uid, "tasks", id);
 
 /* ==========================================================================
+   Date and text helpers (function declarations are hoisted, so they are safe
+   to call from the state block below)
+   ========================================================================== */
+
+function pad(n) { return String(n).padStart(2, "0"); }
+function dateKey(d) { return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`; }
+function parseKey(k) { const [y, m, d] = k.split("-").map(Number); return new Date(y, m - 1, d); }
+function addDays(k, n) { const d = parseKey(k); d.setDate(d.getDate() + n); return dateKey(d); }
+function daysBetween(a, b) { return Math.round((parseKey(b) - parseKey(a)) / 864e5); }
+function dayOfYear(k) { const d = parseKey(k); return Math.floor((d - new Date(d.getFullYear(), 0, 0)) / 864e5); }
+function longDate(k) {
+  return parseKey(k).toLocaleDateString(undefined, { weekday: "long", month: "long", day: "numeric", year: "numeric" });
+}
+function shortDate(k) {
+  return parseKey(k).toLocaleDateString(undefined, { month: "short", day: "numeric" });
+}
+// Splits "I'm grateful to ... I'm grateful for ..." into separate numbered entries.
+function splitGratitude(text) {
+  return text.split(GRATITUDE_SPLIT).map(s => s.replace(/\s+/g, " ").trim()).filter(Boolean);
+}
+
+/* ==========================================================================
    State
    ========================================================================== */
 
@@ -77,10 +102,12 @@ let dayUnsub = null;
 let tasksUnsub = null;
 let saveTimer = null;
 const dirty = new Set();
-let newTaskPriority = undefined;   // undefined = nothing chosen yet, null = decide later
-let managerNewPriority = undefined;
+let view = null;                // "dump" | "prioritize" | "buckets"; null until tasks load
+let preparing = new Set();      // task ids being coloured in the prioritise step
 let dragging = false;
-let managerPendingRender = false;
+let pendingRender = false;
+let taskSpeech = null;
+let managerSpeech = null;
 
 /* ==========================================================================
    DOM refs
@@ -104,12 +131,22 @@ const els = {
   saveStatus: $("#save-status"),
   submittedBadge: $("#submitted-badge"),
   gratitude: $("#gratitude"),
+  gratitudeList: $("#gratitude-list"),
+  gratitudeEmpty: $("#gratitude-empty"),
   frustrations: $("#frustrations"),
+  viewDump: $("#view-dump"),
+  viewPrioritize: $("#view-prioritize"),
+  viewBuckets: $("#view-buckets"),
   taskForm: $("#task-form"),
   taskInput: $("#task-input"),
-  taskPickerWrap: $("#new-task-priorities"),
-  addTaskBtn: $("#add-task-btn"),
-  newTaskHint: $("#new-task-hint"),
+  dumpList: $("#dump-list"),
+  dumpEmpty: $("#dump-empty"),
+  dumpCount: $("#dump-count"),
+  goPrioritize: $("#go-prioritize"),
+  prioritizeList: $("#prioritize-list"),
+  backDump: $("#back-dump"),
+  showBuckets: $("#show-buckets"),
+  addMore: $("#add-more"),
   buckets: $("#buckets"),
   bucketsEmpty: $("#buckets-empty"),
   completed: $("#completed-today"),
@@ -123,26 +160,12 @@ const els = {
   managerList: $("#manager-list"),
   managerEmpty: $("#manager-empty"),
   managerCount: $("#manager-count"),
-  managerAddInput: null,
   toast: $("#toast")
 };
 
 /* ==========================================================================
-   Helpers
+   UI helpers
    ========================================================================== */
-
-function pad(n) { return String(n).padStart(2, "0"); }
-function dateKey(d) { return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`; }
-function parseKey(k) { const [y, m, d] = k.split("-").map(Number); return new Date(y, m - 1, d); }
-function addDays(k, n) { const d = parseKey(k); d.setDate(d.getDate() + n); return dateKey(d); }
-function daysBetween(a, b) { return Math.round((parseKey(b) - parseKey(a)) / 864e5); }
-function dayOfYear(k) { const d = parseKey(k); return Math.floor((d - new Date(d.getFullYear(), 0, 0)) / 864e5); }
-function longDate(k) {
-  return parseKey(k).toLocaleDateString(undefined, { weekday: "long", month: "long", day: "numeric", year: "numeric" });
-}
-function shortDate(k) {
-  return parseKey(k).toLocaleDateString(undefined, { month: "short", day: "numeric" });
-}
 
 function el(tag, props = {}, ...children) {
   const node = document.createElement(tag);
@@ -181,10 +204,41 @@ function openTasks() {
     .filter(t => t.status !== "done")
     .sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
 }
+// Dump = added but not yet prioritised (no colour).
+const dumpTasks = () => openTasks().filter(t => !t.priority);
+const sortedTasks = () => openTasks().filter(t => !!t.priority);
 
 function nextOrder() {
   const open = openTasks();
-  return open.length ? (open[open.length - 1].order ?? open.length) + 1 : 0;
+  return open.length ? Math.max(...open.map(t => t.order ?? 0)) + 1 : 0;
+}
+
+function svgFromString(markup) {
+  const wrap = document.createElement("span");
+  wrap.innerHTML = markup;
+  return wrap.firstElementChild;
+}
+
+function checkSvg() {
+  const ns = "http://www.w3.org/2000/svg";
+  const svg = document.createElementNS(ns, "svg");
+  svg.setAttribute("viewBox", "0 0 24 24");
+  const p = document.createElementNS(ns, "path");
+  p.setAttribute("d", "M5 12.5l4.5 4.5L19 7.5");
+  svg.append(p);
+  return svg;
+}
+
+function svgStar() {
+  const ns = "http://www.w3.org/2000/svg";
+  const svg = document.createElementNS(ns, "svg");
+  svg.setAttribute("viewBox", "0 0 24 24");
+  svg.setAttribute("class", "star");
+  svg.setAttribute("aria-hidden", "true");
+  const path = document.createElementNS(ns, "path");
+  path.setAttribute("d", STAR_PATH);
+  svg.append(path);
+  return svg;
 }
 
 /* ==========================================================================
@@ -252,9 +306,8 @@ function startListeners() {
   subscribeDay();
   tasksUnsub = onSnapshot(tasksCol(user.uid), snap => {
     tasks = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-    renderBoard();
-    renderCompleted();
-    if (!els.manager.hidden) renderManager();
+    if (view === null) showView(sortedTasks().length ? "buckets" : "dump");
+    refreshTasksUI();
   }, err => toast("Could not load tasks: " + err.message, 5000));
 }
 
@@ -265,6 +318,7 @@ function stopListeners() {
   tasks = [];
   dayData = {};
   dirty.clear();
+  view = null;
 }
 
 function subscribeDay() {
@@ -281,6 +335,7 @@ function applyDay() {
     const field = $("#" + f);
     if (!dirty.has(f) && document.activeElement !== field) field.value = dayData[f] || "";
   }
+  renderGratitudeList();
   renderRatings();
   renderSubmitState();
   renderQuote();
@@ -288,7 +343,7 @@ function applyDay() {
 }
 
 /* ==========================================================================
-   Saving (gratitude & release text, autosave to Firestore)
+   Saving (gratitude & letting-go text, autosave to Firestore)
    ========================================================================== */
 
 function scheduleSave() {
@@ -302,7 +357,10 @@ async function flushSave() {
   if (!user || !dirty.size) { if (user) setStatus("All changes saved"); return; }
   const key = viewKey;
   const payload = {};
-  for (const f of dirty) payload[f] = $("#" + f).value;
+  for (const f of dirty) {
+    payload[f] = $("#" + f).value;
+    if (f === "gratitude") payload.gratitudeItems = splitGratitude(payload.gratitude);
+  }
   dirty.clear();
   payload.updatedAt = serverTimestamp();
   try {
@@ -315,6 +373,7 @@ async function flushSave() {
   }
 }
 
+els.gratitude.addEventListener("input", renderGratitudeList);
 FIELDS.forEach(f => {
   $("#" + f).addEventListener("input", () => {
     if (!user) return;
@@ -328,6 +387,17 @@ document.addEventListener("visibilitychange", () => {
   if (document.visibilityState === "hidden") flushSave();
   if (document.visibilityState === "visible") rolloverIfNewDay();
 });
+
+/* ==========================================================================
+   Gratitude: numbered entries built from "I'm grateful to..." sentences
+   ========================================================================== */
+
+function renderGratitudeList() {
+  const items = splitGratitude(els.gratitude.value);
+  els.gratitudeList.innerHTML = "";
+  items.forEach(text => els.gratitudeList.append(el("li", { text })));
+  els.gratitudeEmpty.hidden = items.length > 0;
+}
 
 /* ==========================================================================
    Date navigation
@@ -359,7 +429,7 @@ function rolloverIfNewDay() {
     if (wasViewingToday) viewKey = today;
     renderDate();
     if (wasViewingToday && user) subscribeDay();
-    renderBoard();
+    renderBlueprint();
   }
 }
 
@@ -380,7 +450,11 @@ function renderQuote() {
 }
 
 /* ==========================================================================
-   Voice input (Web Speech API, live transcription into the field)
+   Voice input
+   The mic stays on until the user taps it again. The browser may end a
+   session on its own after silence, so we restart it while the user still
+   wants it on. Returns a controller so the caller can clear the dictation
+   buffer after saving (for example, when Enter saves a task).
    ========================================================================== */
 
 function attachSpeech(btn, field, onEnd) {
@@ -388,19 +462,23 @@ function attachSpeech(btn, field, onEnd) {
   if (!SR) {
     btn.disabled = true;
     btn.title = "Voice input works in Chrome, Edge and Safari";
-    return;
+    return { reset() {}, stop() {} };
   }
+
   let rec = null;
   let active = false;
+  let wantListening = false;
   let base = "";
   let committed = "";
   let lastSet = "";
 
-  btn.setAttribute("aria-pressed", "false");
+  const setUI = on => {
+    btn.classList.toggle("recording", on);
+    btn.setAttribute("aria-pressed", String(on));
+  };
+  setUI(false);
 
-  btn.addEventListener("click", () => {
-    if (active) { rec.stop(); return; }
-
+  function startSession() {
     rec = new SR();
     rec.continuous = true;
     rec.interimResults = true;
@@ -429,33 +507,65 @@ function attachSpeech(btn, field, onEnd) {
     };
 
     rec.onerror = e => {
-      if (e.error !== "no-speech" && e.error !== "aborted") toast("Voice input stopped: " + e.error);
+      if (e.error === "not-allowed" || e.error === "service-not-allowed") {
+        wantListening = false;
+        toast("Microphone access is blocked. Allow it in the browser settings.", 4000);
+      } else if (e.error !== "no-speech" && e.error !== "aborted") {
+        toast("Voice input: " + e.error);
+      }
     };
 
     rec.onend = () => {
       active = false;
-      btn.classList.remove("recording");
-      btn.setAttribute("aria-pressed", "false");
-      if (onEnd) onEnd();
+      if (wantListening) {
+        setTimeout(() => { if (wantListening) startSessionSafe(); }, 200);
+      } else {
+        setUI(false);
+        if (onEnd) onEnd();
+      }
     };
 
-    try {
-      rec.start();
-      active = true;
-      btn.classList.add("recording");
-      btn.setAttribute("aria-pressed", "true");
-    } catch (err) {
-      toast("Could not start the microphone. Check permissions.");
+    rec.start();
+    active = true;
+  }
+
+  function startSessionSafe() {
+    try { startSession(); }
+    catch {
+      wantListening = false;
+      setUI(false);
+      toast("Could not start the microphone.");
     }
+  }
+
+  btn.addEventListener("click", () => {
+    if (wantListening) {
+      wantListening = false;
+      if (active) rec.stop(); else setUI(false);
+      return;
+    }
+    wantListening = true;
+    setUI(true);
+    startSessionSafe();
   });
+
+  return {
+    reset() { base = ""; committed = ""; lastSet = ""; },
+    stop() {
+      if (!wantListening) return;
+      wantListening = false;
+      if (active) rec.stop();
+      setUI(false);
+    }
+  };
 }
 
+taskSpeech = attachSpeech($('[data-speech="task"]'), els.taskInput);
 attachSpeech($('[data-speech="gratitude"]'), els.gratitude, () => flushSave());
-attachSpeech($('[data-speech="frustrations"]'), $("#frustrations"), () => flushSave());
-attachSpeech($('[data-speech="task"]'), els.taskInput);
+attachSpeech($('[data-speech="frustrations"]'), els.frustrations, () => flushSave());
 
 /* ==========================================================================
-   Rating
+   Rating (medal names, original names underneath)
    ========================================================================== */
 
 function renderRatings() {
@@ -468,22 +578,11 @@ function renderRatings() {
       onclick: () => setRating(selected ? null : r.key)
     },
       svgStar(),
-      el("span", { class: "r-name", text: r.name }),
+      el("span", { class: "r-name", text: r.metal }),
+      el("span", { class: "r-sub", text: r.title }),
       el("span", { class: "r-desc", text: r.desc })
     ));
   }
-}
-
-function svgStar() {
-  const ns = "http://www.w3.org/2000/svg";
-  const svg = document.createElementNS(ns, "svg");
-  svg.setAttribute("viewBox", "0 0 24 24");
-  svg.setAttribute("class", "star");
-  svg.setAttribute("aria-hidden", "true");
-  const path = document.createElementNS(ns, "path");
-  path.setAttribute("d", STAR_PATH);
-  svg.append(path);
-  return svg;
 }
 
 async function setRating(key) {
@@ -527,112 +626,77 @@ els.submitBtn.addEventListener("click", async () => {
 });
 
 /* ==========================================================================
-   Priority pickers
+   Blueprint views: dump -> prioritise -> buckets
    ========================================================================== */
 
-function renderPicker(container, selected, onChange) {
-  container.innerHTML = "";
-  for (const p of [...PRIORITIES, UNSORTED]) {
-    const isSel = selected === p.key;
-    container.append(el("button", {
-      type: "button", class: "swatch", role: "radio",
-      "aria-checked": String(isSel), style: { "--c": p.color }, title: p.hint,
-      onclick: () => onChange(p.key)
-    }, p.label));
-  }
+function showView(name) {
+  view = name;
+  if (name === "prioritize") preparing = new Set(dumpTasks().map(t => t.id));
+  else preparing = new Set();
+  els.viewDump.hidden = name !== "dump";
+  els.viewPrioritize.hidden = name !== "prioritize";
+  els.viewBuckets.hidden = name !== "buckets";
+  renderBlueprint();
 }
 
-function renderNewTaskPicker() {
-  renderPicker(els.taskPickerWrap, newTaskPriority, v => {
-    newTaskPriority = v;
-    renderNewTaskPicker();
-    updateAddButton();
-  });
+els.goPrioritize.addEventListener("click", () => showView("prioritize"));
+els.backDump.addEventListener("click", () => showView("dump"));
+els.showBuckets.addEventListener("click", () => showView("buckets"));
+els.addMore.addEventListener("click", () => showView("dump"));
+
+function renderBlueprint() {
+  renderDump();
+  renderPrioritize();
+  renderBoard();
+  renderCompleted();
 }
 
-function updateAddButton() {
-  const ready = els.taskInput.value.trim().length > 0 && newTaskPriority !== undefined;
-  els.addTaskBtn.disabled = !ready;
-  els.newTaskHint.textContent = newTaskPriority === undefined
-    ? "Pick a colour to add the task."
-    : (els.taskInput.value.trim() ? "Ready. Press Add task." : "Type or speak the task.");
-}
-
-els.taskInput.addEventListener("input", updateAddButton);
-renderNewTaskPicker();
-updateAddButton();
-
-async function addTask(text, priority) {
-  if (!user || !text.trim()) return;
-  try {
-    await addDoc(tasksCol(user.uid), {
-      text: text.trim().slice(0, 300),
-      priority,
-      order: nextOrder(),
-      status: "open",
-      createdOn: today,
-      doneOn: null,
-      createdAt: serverTimestamp()
+function renderDump() {
+  const dump = dumpTasks();
+  els.dumpList.innerHTML = "";
+  for (const t of dump) {
+    const del = el("button", {
+      type: "button", class: "m-del", "aria-label": "Delete task", title: "Delete",
+      onclick: () => deleteTask(t)
     });
-  } catch (err) {
-    toast("Could not add task: " + err.message);
-    throw err;
+    del.innerHTML = TRASH_SVG;
+    els.dumpList.append(el("li", { class: "dump-item" }, el("span", { class: "dump-text", text: t.text }), del));
   }
+  els.dumpEmpty.hidden = dump.length > 0;
+  els.dumpCount.textContent = dump.length ? `${dump.length} to prioritise` : "";
+  els.goPrioritize.disabled = dump.length === 0;
 }
 
-els.taskForm.addEventListener("submit", async e => {
-  e.preventDefault();
-  if (newTaskPriority === undefined || !els.taskInput.value.trim()) return;
-  const text = els.taskInput.value;
-  const pr = newTaskPriority;
-  els.taskInput.value = "";
-  newTaskPriority = undefined;
-  renderNewTaskPicker();
-  updateAddButton();
-  els.taskInput.focus();
-  try { await addTask(text, pr); } catch { els.taskInput.value = text; newTaskPriority = pr; updateAddButton(); }
-});
-
-/* ==========================================================================
-   Task board (buckets by priority)
-   ========================================================================== */
-
-function carriedLabel(t) {
-  const days = t.createdOn ? daysBetween(t.createdOn, today) : 0;
-  if (days <= 0) return "Added today";
-  return `Carried ${days} day${days === 1 ? "" : "s"}, from ${shortDate(t.createdOn)}`;
+function renderPrioritize() {
+  if (view !== "prioritize" || isEditingTaskText()) return;
+  const list = openTasks().filter(t => preparing.has(t.id));
+  els.prioritizeList.innerHTML = "";
+  list.forEach(t => els.prioritizeList.append(managerItem(t)));
 }
 
 function renderBoard() {
-  const open = openTasks();
+  const sorted = sortedTasks();
   els.buckets.innerHTML = "";
-  els.bucketsEmpty.hidden = open.length > 0;
+  els.bucketsEmpty.hidden = sorted.length > 0;
 
-  const groups = [
-    ...(open.some(t => !t.priority) ? [{ ...UNSORTED, items: open.filter(t => !t.priority) }] : []),
-    ...PRIORITIES.map(p => ({ ...p, items: open.filter(t => t.priority === p.key) }))
-  ];
-
-  for (const g of groups) {
-    const list = el("ul", { class: "bucket-list" },
-      g.items.length
-        ? g.items.map(t => taskItem(t))
-        : [el("li", { class: "bucket-empty", text: "Nothing here" })]
-    );
-    els.buckets.append(el("section", { class: "bucket", style: { "--c": g.color }, "aria-label": g.label },
+  for (const p of PRIORITIES) {
+    const items = sorted.filter(t => t.priority === p.key);
+    els.buckets.append(el("section", { class: "bucket", style: { "--c": p.color }, "aria-label": p.label },
       el("div", { class: "bucket-head" },
-        el("span", { class: "bucket-title", text: g.label }),
-        el("span", { class: "bucket-count", text: String(g.items.length) })
+        el("span", { class: "bucket-title", text: p.label }),
+        el("span", { class: "bucket-count", text: String(items.length) })
       ),
-      el("p", { class: "bucket-hint", text: g.hint }),
-      list
+      el("p", { class: "bucket-hint", text: p.hint }),
+      el("ul", { class: "bucket-list" },
+        items.length ? items.map(t => taskItem(t)) : [el("li", { class: "bucket-empty", text: "Nothing here" })]
+      )
     ));
   }
 }
 
 function taskItem(t) {
   const color = (PRIORITY_BY_KEY[t.priority] || UNSORTED).color;
-  const li = el("li", { class: "task", "data-id": t.id, style: { "--c": color } },
+  return el("li", { class: "task", "data-id": t.id, style: { "--c": color } },
     el("button", {
       type: "button", class: "check", "aria-label": "Mark as done", title: "Done",
       onclick: e => completeTask(t.id, e.currentTarget.closest("li"))
@@ -642,17 +706,12 @@ function taskItem(t) {
       el("span", { class: "task-meta" }, el("span", { class: t.createdOn < today ? "carry" : "", text: carriedLabel(t) }))
     )
   );
-  return li;
 }
 
-function checkSvg() {
-  const ns = "http://www.w3.org/2000/svg";
-  const svg = document.createElementNS(ns, "svg");
-  svg.setAttribute("viewBox", "0 0 24 24");
-  const p = document.createElementNS(ns, "path");
-  p.setAttribute("d", "M5 12.5l4.5 4.5L19 7.5");
-  svg.append(p);
-  return svg;
+function carriedLabel(t) {
+  const days = t.createdOn ? daysBetween(t.createdOn, today) : 0;
+  if (days <= 0) return "Added today";
+  return `Carried ${days} day${days === 1 ? "" : "s"}, from ${shortDate(t.createdOn)}`;
 }
 
 async function completeTask(id, li) {
@@ -678,10 +737,7 @@ function renderCompleted() {
   for (const t of done) {
     els.completedList.append(el("li", {},
       el("span", { text: t.text }),
-      el("button", {
-        type: "button", class: "link-btn",
-        onclick: () => restoreTask(t.id)
-      }, "Restore")
+      el("button", { type: "button", class: "link-btn", onclick: () => restoreTask(t.id) }, "Restore")
     ));
   }
 }
@@ -694,9 +750,56 @@ async function restoreTask(id) {
 }
 
 /* ==========================================================================
-   Centralised task manager (edit, recolour, delete, reorder)
+   Adding, editing and deleting tasks
    ========================================================================== */
 
+async function addTask(text) {
+  if (!user || !text.trim()) return;
+  try {
+    await addDoc(tasksCol(user.uid), {
+      text: text.trim().slice(0, 300),
+      priority: null,            // starts in the dump, colour comes later
+      order: nextOrder(),
+      status: "open",
+      createdOn: today,
+      doneOn: null,
+      createdAt: serverTimestamp()
+    });
+  } catch (err) {
+    toast("Could not add task: " + err.message);
+    throw err;
+  }
+}
+
+// Enter saves the task. The mic keeps listening for the next one.
+els.taskForm.addEventListener("submit", async e => {
+  e.preventDefault();
+  const text = els.taskInput.value.trim();
+  if (!text) return;
+  els.taskInput.value = "";
+  taskSpeech.reset();
+  els.taskInput.focus();
+  try { await addTask(text); }
+  catch { els.taskInput.value = text; }
+});
+
+async function setTaskPriority(id, key) {
+  if (!user) return;
+  const t = tasks.find(x => x.id === id);
+  if (t) t.priority = key;   // optimistic
+  refreshTasksUI();
+  try { await updateDoc(taskRef(user.uid, id), { priority: key }); }
+  catch (err) { toast("Could not set priority: " + err.message); }
+}
+
+async function deleteTask(t) {
+  if (!user) return;
+  if (!confirm(`Delete "${t.text}"?`)) return;
+  try { await deleteDoc(taskRef(user.uid, t.id)); toast("Task deleted", 1800); }
+  catch (err) { toast("Could not delete: " + err.message); }
+}
+
+/* Shared task row: check, text, colours, delete. Used by prioritise and manager. */
 function renderMiniColors(container, task) {
   container.innerHTML = "";
   for (const p of [...PRIORITIES, UNSORTED]) {
@@ -722,9 +825,7 @@ function managerItem(t) {
     onclick: () => completeTask(t.id, null)
   }, checkSvg());
 
-  const text = el("input", {
-    type: "text", class: "m-text", value: t.text, maxlength: 300, "aria-label": "Task text"
-  });
+  const text = el("input", { type: "text", class: "m-text", value: t.text, maxlength: 300, "aria-label": "Task text" });
   text.addEventListener("keydown", e => { if (e.key === "Enter") text.blur(); });
   text.addEventListener("change", () => {
     const v = text.value.trim();
@@ -745,9 +846,24 @@ function managerItem(t) {
   return item;
 }
 
+/* Re-render after data changes, but never while the user is typing in a task. */
+function refreshTasksUI() {
+  if (isEditingTaskText() || dragging) { pendingRender = true; return; }
+  pendingRender = false;
+  renderBlueprint();
+  if (!els.manager.hidden) renderManager();
+}
+
+function isEditingTaskText() {
+  const a = document.activeElement;
+  return !!a && a.classList.contains("m-text");
+}
+
+document.addEventListener("focusout", () => {
+  setTimeout(() => { if (pendingRender && !dragging) refreshTasksUI(); }, 0);
+});
+
 function renderManager() {
-  if (dragging || managerIsEditing()) { managerPendingRender = true; return; }
-  managerPendingRender = false;
   const open = openTasks();
   els.managerList.innerHTML = "";
   open.forEach(t => els.managerList.append(managerItem(t)));
@@ -755,33 +871,7 @@ function renderManager() {
   els.managerCount.textContent = `${open.length} open task${open.length === 1 ? "" : "s"}`;
 }
 
-function managerIsEditing() {
-  const a = document.activeElement;
-  return !!a && els.managerList.contains(a) && a.classList.contains("m-text");
-}
-
-els.managerList.addEventListener("focusout", () => {
-  setTimeout(() => { if (managerPendingRender && !els.manager.hidden) renderManager(); }, 0);
-});
-
-async function setTaskPriority(id, key) {
-  if (!user) return;
-  const t = tasks.find(x => x.id === id);
-  if (t) t.priority = key;   // optimistic
-  renderManager();
-  renderBoard();
-  try { await updateDoc(taskRef(user.uid, id), { priority: key }); }
-  catch (err) { toast("Could not set priority: " + err.message); }
-}
-
-async function deleteTask(t) {
-  if (!user) return;
-  if (!confirm(`Delete "${t.text}"?`)) return;
-  try { await deleteDoc(taskRef(user.uid, t.id)); toast("Task deleted", 1800); }
-  catch (err) { toast("Could not delete: " + err.message); }
-}
-
-/* Drag-to-reorder with pointer events (works with mouse, pen and touch). */
+/* Drag-to-reorder with pointer events (mouse, pen and touch). */
 function enableDragReorder(container, onDrop) {
   container.addEventListener("pointerdown", e => {
     const handle = e.target.closest(".drag-handle");
@@ -828,8 +918,7 @@ function enableDragReorder(container, onDrop) {
       item.removeAttribute("style");
       document.body.style.userSelect = "";
       dragging = false;
-      const ids = [...container.querySelectorAll(".m-item")].map(n => n.dataset.id);
-      onDrop(ids);
+      onDrop([...container.querySelectorAll(".m-item")].map(n => n.dataset.id));
     };
 
     handle.addEventListener("pointermove", onMove);
@@ -838,61 +927,65 @@ function enableDragReorder(container, onDrop) {
   });
 }
 
-enableDragReorder(els.managerList, async ids => {
+// Reorders a list of tasks by reusing the slots they already occupy, so the
+// global order of other tasks is not disturbed.
+async function reorderTasks(ids) {
   if (!user) return;
-  // Apply locally first so the list does not jump back.
-  ids.forEach((id, i) => {
-    const t = tasks.find(x => x.id === id);
-    if (t) t.order = i;
+  const moved = ids.map(id => tasks.find(t => t.id === id)).filter(Boolean);
+  const slots = moved.map(t => t.order ?? 0).sort((a, b) => a - b);
+  const updates = [];
+  moved.forEach((t, i) => {
+    if (t.order !== slots[i]) { t.order = slots[i]; updates.push([t.id, slots[i]]); }
   });
-  renderBoard();
+  refreshTasksUI();
+  if (!updates.length) return;
   const batch = writeBatch(db);
-  ids.forEach((id, i) => batch.update(taskRef(user.uid, id), { order: i }));
+  updates.forEach(([id, order]) => batch.update(taskRef(user.uid, id), { order }));
   try { await batch.commit(); }
   catch (err) { toast("Could not save new order: " + err.message); }
-});
+}
 
-/* Manager add row (same colour-first rule as the main form) */
+enableDragReorder(els.managerList, reorderTasks);
+enableDragReorder(els.prioritizeList, reorderTasks);
+
+/* Manager add row: text or voice, Enter saves, mic stays on until closed. */
 function buildManagerAddRow() {
   const input = el("input", { type: "text", class: "input", placeholder: "Add a task, by text or voice...", maxlength: 300, "aria-label": "New task" });
-  const mic = el("button", { type: "button", class: "mic-btn", "aria-label": "Voice input for a new task", title: "Speak a task" });
+  const mic = el("button", { type: "button", class: "mic-btn", "aria-label": "Voice input for a new task", title: "Speak tasks" });
   mic.innerHTML = `<svg viewBox="0 0 24 24"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></svg>`;
-  const picker = el("div", { class: "priority-picker", role: "radiogroup", "aria-label": "Priority for the new task" });
   const addBtn = el("button", { type: "button", class: "btn btn-primary", disabled: true }, "Add");
 
-  const refresh = () => {
-    addBtn.disabled = !(input.value.trim() && managerNewPriority !== undefined);
-    renderPicker(picker, managerNewPriority, v => { managerNewPriority = v; refresh(); });
+  const refresh = () => { addBtn.disabled = !input.value.trim(); };
+  const submit = async () => {
+    const text = input.value.trim();
+    if (!text) return;
+    input.value = "";
+    managerSpeech?.reset();
+    refresh();
+    input.focus();
+    try { await addTask(text); } catch { input.value = text; refresh(); }
   };
+
   input.addEventListener("input", refresh);
-  addBtn.addEventListener("click", async () => {
-    const text = input.value, pr = managerNewPriority;
-    input.value = ""; managerNewPriority = undefined; refresh(); input.focus();
-    try { await addTask(text, pr); } catch { input.value = text; managerNewPriority = pr; refresh(); }
-  });
-  attachSpeech(mic, input, refresh);
-  managerNewPriority = undefined;
-  refresh();
-  return el("div", { class: "m-add-wrap" },
-    el("div", { class: "m-add" }, input, mic, addBtn),
-    picker
-  );
+  input.addEventListener("keydown", e => { if (e.key === "Enter") { e.preventDefault(); submit(); } });
+  addBtn.addEventListener("click", submit);
+  managerSpeech = attachSpeech(mic, input);
+  return el("div", { class: "m-add-wrap" }, el("div", { class: "m-add" }, input, mic, addBtn));
 }
 
 function openManager() {
   els.manager.hidden = false;
   document.body.style.overflow = "hidden";
   renderManager();
-  const existing = $(".m-add-wrap", els.manager);
-  if (existing) existing.remove();
+  $(".m-add-wrap", els.manager)?.remove();
   els.manager.querySelector(".modal-foot").before(buildManagerAddRow());
   setTimeout(() => $(".m-add input", els.manager)?.focus(), 50);
 }
 
 function closeManager() {
+  managerSpeech?.stop();
   els.manager.hidden = true;
   document.body.style.overflow = "";
-  if (managerPendingRender) renderManager();
 }
 
 els.openManager.addEventListener("click", openManager);
@@ -900,10 +993,12 @@ els.manager.querySelectorAll("[data-close]").forEach(b => b.addEventListener("cl
 document.addEventListener("keydown", e => { if (e.key === "Escape" && !els.manager.hidden) closeManager(); });
 
 /* ==========================================================================
-   Boot
+   Boot (runs after every function and constant above is defined)
    ========================================================================== */
 
 renderDate();
 renderQuote();
 renderRatings();
 renderSubmitState();
+renderGratitudeList();
+renderBlueprint();
