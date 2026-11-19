@@ -1,27 +1,32 @@
 /* ==========================================================================
-   Daily Diaries - dark theme, responsive, PWA-safe
+   Daily Diaries - "Bioluminescent Abyss" dark theme, responsive, PWA-safe
    ========================================================================== */
 
 :root {
   color-scheme: dark;
-  --bg: #0b0f19;
-  --bg-elev: #0f1524;
-  --surface: #131b2e;
-  --surface-2: #1a2440;
-  --border: #243152;
-  --border-soft: #1c2741;
-  --text: #e6e9f2;
-  --text-dim: #a3adc2;
-  --text-faint: #6b7892;
-  --accent: #8b9cff;
-  --accent-strong: #6d7ff5;
-  --accent-soft: rgba(139, 156, 255, 0.14);
-  --gold: #facc15;
-  --danger: #f43f5e;
-  --success: #34d399;
+  /* Canvas and surfaces */
+  --bg: #040D12;            /* trench black: main canvas */
+  --bg-elev: #0A1D26;
+  --surface: #0A1D26;       /* deep sea slate: cards, modals */
+  --surface-2: #0F2A36;     /* abyssal teal: hover / active surfaces */
+  --border: rgba(0, 245, 212, 0.2);
+  --border-soft: rgba(0, 245, 212, 0.1);
+  /* Text */
+  --text: #ECFFFC;          /* seafoam white */
+  --text-dim: #88AAB2;      /* muted deep-water slate */
+  --text-faint: #5C7A83;
+  /* Accents */
+  --accent: #00F5D4;        /* bioluminescent cyan: primary */
+  --accent-strong: #00BBF9; /* deep ocean aqua */
+  --accent-soft: rgba(0, 245, 212, 0.14);
+  --magenta: #F15BB5;       /* sea-anemone magenta: secondary */
+  --gold: #F15BB5;          /* highlight accent (badges, carry-over, markers) */
+  --glow: 0 0 24px rgba(0, 245, 212, 0.28);
+  --danger: #FF5D8F;
+  --success: #5EEAD4;
   --radius: 18px;
   --radius-sm: 12px;
-  --shadow: 0 10px 30px -12px rgba(0, 0, 0, 0.6);
+  --shadow: 0 10px 30px -12px rgba(0, 0, 0, 0.7);
   --font-body: "Inter", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
   --font-display: "Fraunces", Georgia, "Times New Roman", serif;
 
@@ -58,9 +63,14 @@ html, body {
 }
 
 body {
-  background: transparent;   /* the night sky layer (.sky) sits behind everything */
+  background: transparent;   /* the abyss layer (.abyss) sits behind everything */
   min-height: 100dvh;
 }
+
+/* Every foreground element sits above the background layer. */
+.app,
+.auth-screen,
+.loading-screen { position: relative; z-index: 1; }
 
 [hidden] { display: none !important; }
 
@@ -97,11 +107,13 @@ button:disabled { cursor: not-allowed; opacity: 0.45; }
 }
 .btn:active { transform: scale(0.97); }
 .btn-primary {
-  background: linear-gradient(135deg, var(--accent-strong), #7c5cff);
+  background: linear-gradient(135deg, var(--accent), var(--accent-strong));
   border-color: transparent;
-  color: #fff;
-  box-shadow: 0 8px 22px -10px rgba(109, 127, 245, 0.8);
+  color: #021014;
+  font-weight: 700;
+  box-shadow: var(--glow);
 }
+.btn-primary:hover:not(:disabled) { box-shadow: 0 0 34px rgba(0, 245, 212, 0.45); }
 .btn-primary:hover:not(:disabled) { filter: brightness(1.08); }
 .btn-ghost { background: transparent; }
 .btn-ghost:hover:not(:disabled) { background: var(--surface-2); }
@@ -119,7 +131,7 @@ button:disabled { cursor: not-allowed; opacity: 0.45; }
   color: var(--text-dim);
   flex-shrink: 0;
 }
-.icon-btn:hover { color: var(--text); border-color: var(--accent); }
+.icon-btn:hover { color: var(--text); border-color: var(--accent); box-shadow: var(--glow); }
 .icon-btn svg, .mic-btn svg {
   width: 20px; height: 20px;
   fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round;
@@ -143,7 +155,7 @@ button:disabled { cursor: not-allowed; opacity: 0.45; }
   position: relative;
   transition: background .2s, color .2s, box-shadow .2s;
 }
-.mic-btn:hover { border-color: var(--accent); }
+.mic-btn:hover { border-color: var(--accent); box-shadow: var(--glow); }
 .mic-btn.recording {
   background: var(--danger);
   color: #fff;
@@ -152,9 +164,9 @@ button:disabled { cursor: not-allowed; opacity: 0.45; }
 }
 .mic-btn:disabled { opacity: .35; }
 @keyframes pulse {
-  0%   { box-shadow: 0 0 0 0 rgba(244, 63, 94, 0.55); }
-  70%  { box-shadow: 0 0 0 14px rgba(244, 63, 94, 0); }
-  100% { box-shadow: 0 0 0 0 rgba(244, 63, 94, 0); }
+  0%   { box-shadow: 0 0 0 0 rgba(255, 93, 143, 0.55); }
+  70%  { box-shadow: 0 0 0 14px rgba(255, 93, 143, 0); }
+  100% { box-shadow: 0 0 0 0 rgba(255, 93, 143, 0); }
 }
 
 /* ---------- Auth ---------- */
@@ -184,8 +196,8 @@ button:disabled { cursor: not-allowed; opacity: 0.45; }
   font-weight: 700;
   letter-spacing: -0.01em;
 }
-.auth-card .btn { width: 100%; max-width: 300px; gap: 10px; background: #fff; color: #1f1f1f; border: 0; }
-.auth-card .btn:hover { background: #f1f1f1; }
+.auth-card .btn { width: 100%; max-width: 300px; gap: 10px; background: var(--text); color: #021014; border: 0; }
+.auth-card .btn:hover { background: #ffffff; box-shadow: var(--glow); }
 
 .loading-screen {
   min-height: 100dvh;
@@ -212,16 +224,16 @@ button:disabled { cursor: not-allowed; opacity: 0.45; }
   align-items: center;
   gap: 12px;
   padding: calc(env(safe-area-inset-top, 0px) + 12px) max(16px, env(safe-area-inset-right, 0px)) 12px max(16px, env(safe-area-inset-left, 0px));
-  background: rgba(11, 15, 25, 0.82);
-  backdrop-filter: blur(14px);
-  -webkit-backdrop-filter: blur(14px);
-  border-bottom: 1px solid var(--border-soft);
+  background: rgba(4, 13, 18, 0.82);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border-bottom: 1px solid var(--border);
 }
 .brand { display: flex; align-items: center; gap: 10px; min-width: 0; justify-self: start; }
 .brand-dot {
   width: 12px; height: 12px; border-radius: 50%;
-  background: linear-gradient(135deg, var(--gold), var(--accent));
-  box-shadow: 0 0 14px rgba(250, 204, 21, 0.45);
+  background: linear-gradient(135deg, var(--magenta), var(--accent));
+  box-shadow: 0 0 14px rgba(0, 245, 212, 0.45);
 }
 .brand-name {
   font-family: var(--font-display);
@@ -264,8 +276,8 @@ button:disabled { cursor: not-allowed; opacity: 0.45; }
 .avatar-initial {
   display: grid;
   place-items: center;
-  background: linear-gradient(135deg, var(--gold), var(--accent));
-  color: #0b0f19;
+  background: linear-gradient(135deg, var(--magenta), var(--accent));
+  color: #021014;
   font-weight: 700;
   font-size: 0.9rem;
 }
@@ -278,7 +290,9 @@ button:disabled { cursor: not-allowed; opacity: 0.45; }
   border-radius: 12px;
   background: var(--surface);
   border: 1px solid var(--border);
-  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.45);
+  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.55), 0 0 24px rgba(0, 245, 212, 0.12);
+  -webkit-backdrop-filter: blur(12px);
+  backdrop-filter: blur(12px);
   z-index: 50;
 }
 .user-pop-item {
@@ -291,7 +305,7 @@ button:disabled { cursor: not-allowed; opacity: 0.45; }
   background: none;
   color: var(--text);
 }
-.user-pop-item:hover, .user-pop-item:focus-visible { background: var(--surface-2); outline: none; }
+.user-pop-item:hover, .user-pop-item:focus-visible { background: var(--surface-2); color: var(--accent); outline: none; }
 
 /* ---------- Page ---------- */
 .page {
@@ -334,20 +348,21 @@ button:disabled { cursor: not-allowed; opacity: 0.45; }
 .badge {
   padding: 4px 12px;
   border-radius: 999px;
-  background: rgba(52, 211, 153, 0.14);
+  background: rgba(94, 234, 212, 0.14);
   color: var(--success);
   font-weight: 600;
   font-size: 0.8rem;
 }
 
+/* Glass cards: a darker semi-opaque backing keeps text crisp over the bright animation behind. */
 .card {
-  background: linear-gradient(180deg, rgba(19, 27, 46, 0.80), rgba(15, 21, 36, 0.86));
-  -webkit-backdrop-filter: blur(10px);
-  backdrop-filter: blur(10px);
-  border: 1px solid var(--border);
+  background: rgba(10, 29, 38, 0.82);
+  -webkit-backdrop-filter: blur(12px);
+  backdrop-filter: blur(12px);
+  border: 1px solid rgba(0, 245, 212, 0.2);
+  box-shadow: var(--shadow), 0 0 28px rgba(0, 245, 212, 0.06);
   border-radius: var(--radius);
   padding: 20px;
-  box-shadow: var(--shadow);
   min-width: 0;
 }
 .card-head {
@@ -418,7 +433,7 @@ button:disabled { cursor: not-allowed; opacity: 0.45; }
 .textarea:focus, .input:focus {
   outline: none;
   border-color: var(--accent);
-  box-shadow: 0 0 0 4px var(--accent-soft);
+  box-shadow: 0 0 0 4px var(--accent-soft), var(--glow);
 }
 
 /* ---------- Task blueprint ---------- */
@@ -886,101 +901,138 @@ button:disabled { cursor: not-allowed; opacity: 0.45; }
   background: var(--accent-soft);
 }
 
-/* ---------- Night sky background ---------- */
-.sky {
+/* ---------- Bioluminescent abyss background ----------
+   One fixed layer behind everything (z-index 0). Every layer is decorative and ignores the pointer.
+   Animations use transform and opacity only, so they stay smooth. */
+.abyss {
   position: fixed;
   inset: 0;
-  z-index: -1;
+  z-index: 0;
   overflow: hidden;
   pointer-events: none;
-  background: linear-gradient(180deg, #03050f 0%, #0a1027 55%, #111a36 100%);
-}
-.aurora {
-  position: absolute;
-  left: -20%;
-  right: -20%;
-  top: -10%;
-  height: 55%;
   background:
-    radial-gradient(ellipse at 30% 0%, rgba(139, 156, 255, 0.22), transparent 60%),
-    radial-gradient(ellipse at 70% 10%, rgba(45, 212, 191, 0.14), transparent 60%);
-  filter: blur(28px);
-  animation: aurora-sway 14s ease-in-out infinite alternate;
-}
-@keyframes aurora-sway {
-  from { transform: translateX(-3%); }
-  to   { transform: translateX(3%); }
-}
-.stars {
-  position: absolute;
-  inset: -220px;
-  background-size: 220px 220px;
-}
-.stars-far {
-  will-change: transform, opacity;
-  background-image:
-    radial-gradient(1px 1px at 20px 30px, rgba(255, 255, 255, 0.75), transparent),
-    radial-gradient(1px 1px at 90px 120px, rgba(226, 232, 240, 0.6), transparent),
-    radial-gradient(1px 1px at 160px 60px, rgba(255, 255, 255, 0.55), transparent),
-    radial-gradient(1px 1px at 40px 180px, rgba(255, 255, 255, 0.6), transparent),
-    radial-gradient(1px 1px at 200px 150px, rgba(255, 255, 255, 0.5), transparent);
-  animation: star-drift 220s linear infinite, twinkle-soft 4s ease-in-out infinite alternate;
-}
-.stars-near {
-  will-change: transform, opacity;
-  background-image:
-    radial-gradient(1.6px 1.6px at 60px 80px, rgba(253, 230, 138, 0.9), transparent),
-    radial-gradient(1.5px 1.5px at 150px 20px, rgba(186, 230, 253, 0.9), transparent),
-    radial-gradient(1.6px 1.6px at 110px 170px, rgba(255, 255, 255, 0.9), transparent),
-    radial-gradient(1.4px 1.4px at 200px 110px, rgba(255, 255, 255, 0.8), transparent);
-  animation: star-drift 120s linear infinite, twinkle-soft 2.6s ease-in-out infinite alternate;
-}
-@keyframes star-drift { to { transform: translate(220px, 220px); } }
-@keyframes twinkle-soft { from { opacity: 0.45; } to { opacity: 1; } }
-
-.moon {
-  position: absolute;
-  top: 9%;
-  right: 8%;
-  width: 86px;
-  height: 86px;
-  border-radius: 50%;
-  background: radial-gradient(circle at 34% 32%, #fffdf5 0%, #f1f5f9 45%, #cbd5e1 100%);
-  animation: moon-glow 6s ease-in-out infinite;
-}
-.crater {
-  position: absolute;
-  border-radius: 50%;
-  background: rgba(148, 163, 184, 0.35);
-}
-.c1 { width: 18px; height: 18px; top: 22px; left: 20px; }
-.c2 { width: 11px; height: 11px; top: 50px; left: 50px; }
-@keyframes moon-glow {
-  0%, 100% { box-shadow: 0 0 40px 10px rgba(226, 232, 240, 0.20), 0 0 120px 40px rgba(147, 197, 253, 0.10); }
-  50%      { box-shadow: 0 0 56px 16px rgba(226, 232, 240, 0.32), 0 0 150px 60px rgba(147, 197, 253, 0.18); }
+    radial-gradient(ellipse at 50% 110%, rgba(0, 245, 212, 0.22), transparent 60%),
+    linear-gradient(180deg, #02080B 0%, #0A1D26 100%);
 }
 
-.shoot {
+/* Huge, sweeping aurora currents: bright cores with a soft bloom */
+.abyss-ribbon {
   position: absolute;
-  width: 140px;
-  height: 1.5px;
-  border-radius: 2px;
-  background: linear-gradient(90deg, transparent, #ffffff);
+  left: -40%;
+  right: -40%;
+  height: 62vh;
+  border-radius: 50%;
+  filter: blur(55px);
+  mix-blend-mode: screen;
+  animation: ribbon-sway 18s ease-in-out infinite alternate;
+  will-change: transform;
+}
+.ribbon-1 { top: -14%; background: radial-gradient(ellipse at 40% 50%, rgba(0, 245, 212, 0.42), transparent 62%); }
+.ribbon-2 { top: 20%; background: radial-gradient(ellipse at 60% 50%, rgba(241, 91, 181, 0.36), transparent 60%); animation-duration: 24s; animation-delay: -6s; }
+.ribbon-3 { top: 50%; background: radial-gradient(ellipse at 35% 50%, rgba(0, 187, 249, 0.40), transparent 60%); animation-duration: 28s; animation-delay: -12s; }
+.ribbon-4 { top: 76%; background: radial-gradient(ellipse at 55% 50%, rgba(0, 245, 212, 0.34), transparent 60%); animation-duration: 32s; animation-delay: -3s; }
+@keyframes ribbon-sway {
+  from { transform: translate3d(-8%, 0, 0) rotate(-7deg) scale(1); }
+  to   { transform: translate3d(8%, -5%, 0) rotate(7deg) scale(1.18); }
+}
+
+/* Sweeping light beams: diagonal shafts of light drifting across the dark */
+.abyss-beam {
+  position: absolute;
+  top: -20%;
+  width: 22vw;
+  height: 150%;
+  background: linear-gradient(180deg, rgba(0, 245, 212, 0.0), rgba(0, 245, 212, 0.22) 40%, rgba(241, 91, 181, 0.10) 75%, transparent);
+  filter: blur(18px);
+  transform: rotate(18deg);
+  mix-blend-mode: screen;
+  animation: beam-sweep 20s ease-in-out infinite alternate;
+}
+.beam-1 { left: 6%; }
+.beam-2 { left: 42%; width: 16vw; animation-duration: 26s; animation-delay: -9s; background: linear-gradient(180deg, transparent, rgba(0, 187, 249, 0.26) 45%, transparent); }
+.beam-3 { left: 74%; animation-duration: 23s; animation-delay: -4s; }
+@keyframes beam-sweep {
+  from { transform: rotate(14deg) translate3d(-6vw, 0, 0); opacity: 0.6; }
+  to   { transform: rotate(24deg) translate3d(6vw, 0, 0); opacity: 1; }
+}
+
+/* Expanding pulse rings: bright, slow, grand */
+.abyss-ring {
+  position: absolute;
+  width: 62vmin;
+  height: 62vmin;
+  border-radius: 50%;
+  translate: -50% -50%;
+  border: 2px solid rgba(var(--c), 0.5);
+  box-shadow: 0 0 60px rgba(var(--c), 0.45), inset 0 0 60px rgba(var(--c), 0.25);
   opacity: 0;
-  animation: shoot 9s ease-in infinite;
+  animation: ring-expand 13s ease-out infinite;
 }
-.sh1 { top: 14%; left: 55%; animation-delay: 1.5s; }
-.sh2 { top: 30%; left: 15%; animation-delay: 6s; animation-duration: 12s; }
-@keyframes shoot {
-  0%    { opacity: 0; transform: translate(0, 0) rotate(-22deg); }
-  5%    { opacity: 1; }
-  12%   { opacity: 0; transform: translate(380px, 200px) rotate(-22deg); }
-  100%  { opacity: 0; transform: translate(380px, 200px) rotate(-22deg); }
+.ring-1 { --c: 0, 245, 212; left: 18%; top: 30%; }
+.ring-2 { --c: 241, 91, 181; left: 82%; top: 70%; animation-duration: 17s; animation-delay: -6s; }
+.ring-3 { --c: 0, 187, 249; left: 55%; top: 15%; animation-duration: 20s; animation-delay: -11s; }
+.ring-4 { --c: 0, 245, 212; left: 30%; top: 82%; animation-duration: 22s; animation-delay: -15s; }
+@keyframes ring-expand {
+  0%   { transform: scale(0.2); opacity: 0; }
+  12%  { opacity: 1; }
+  100% { transform: scale(2.6); opacity: 0; }
 }
-@media (max-width: 680px) {
-  .moon { width: 60px; height: 60px; top: 7%; right: 6%; }
-  .c1 { width: 13px; height: 13px; top: 15px; left: 14px; }
-  .c2 { width: 8px; height: 8px; top: 36px; left: 36px; }
+
+/* Rising bioluminescent orbs and spores, each with its own depth, speed and sway */
+.abyss-orb,
+.abyss-spore {
+  position: absolute;
+  bottom: -260px;
+  left: var(--x);
+  width: var(--s);
+  height: var(--s);
+  border-radius: 50%;
+  opacity: 0;
+  animation: rise var(--dur) linear var(--delay) infinite;
+  will-change: transform, opacity;
+}
+.abyss-orb {
+  background: radial-gradient(circle at 42% 38%,
+    rgba(255, 255, 255, 0.75) 0%,
+    rgba(var(--c), 0.8) 14%,
+    rgba(var(--c), 0.28) 45%,
+    transparent 70%);
+  box-shadow: 0 0 calc(var(--s) * 0.35) rgba(var(--c), 0.55);
+}
+.abyss-spore {
+  background: radial-gradient(circle, #ffffff 0 18%, rgba(var(--c), 1) 40%, transparent 72%);
+  box-shadow: 0 0 10px rgba(var(--c), 1), 0 0 26px rgba(var(--c), 0.7);
+}
+@keyframes rise {
+  0%   { transform: translate3d(0, 0, 0); opacity: 0; }
+  10%  { opacity: var(--o, 0.9); }
+  50%  { transform: translate3d(var(--drift), -55vh, 0); }
+  90%  { opacity: var(--o, 0.9); }
+  100% { transform: translate3d(calc(var(--drift) * -0.6), -130vh, 0); opacity: 0; }
+}
+
+/* Click ripples: created by app.js at the pointer, removed when the animation ends */
+.abyss-ripple {
+  position: fixed;
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  pointer-events: none;
+  z-index: 9999;
+  border: 3px solid rgba(var(--c), 0.95);
+  box-shadow: 0 0 34px rgba(var(--c), 0.8), inset 0 0 18px rgba(var(--c), 0.5);
+  translate: -50% -50%;
+  animation: ripple-out 1s ease-out forwards;
+}
+@keyframes ripple-out {
+  from { transform: scale(0.2); opacity: 1; }
+  to   { transform: scale(9); opacity: 0; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  /* Static dark-mode version: the base, the glow and the still ribbons only. */
+  .abyss-ribbon { animation: none; }
+  .abyss-beam, .abyss-ring, .abyss-orb, .abyss-spore, .abyss-ripple { display: none; }
 }
 
 /* ---------- Submit ---------- */
@@ -1006,7 +1058,7 @@ button:disabled { cursor: not-allowed; opacity: 0.45; }
 }
 .modal-backdrop {
   position: absolute; inset: 0;
-  background: rgba(3, 6, 14, 0.7);
+  background: rgba(4, 13, 18, 0.7);
   backdrop-filter: blur(4px);
   -webkit-backdrop-filter: blur(4px);
 }
@@ -1302,14 +1354,13 @@ button:disabled { cursor: not-allowed; opacity: 0.45; }
    Blur and repainting animations are the costly parts on phones, so they are switched off there.
    The look stays the same, just flatter. */
 @media (max-width: 900px), (hover: none) {
-  .card, .topbar, .modal-backdrop {
+  .topbar, .modal-backdrop {
     backdrop-filter: none;
     -webkit-backdrop-filter: none;
   }
-  .card { background: linear-gradient(180deg, rgba(19, 27, 46, 0.94), rgba(15, 21, 36, 0.96)); }
-  .aurora, .moon, .shoot { animation: none; }
-  .aurora { filter: none; }
-  .shoot { display: none; }
+  .card { background: rgba(10, 29, 38, 0.92); }
+  .abyss-ribbon { filter: none; }
+  .abyss-ring, .abyss-spore { display: none; }
   .bucket, .bucket-hint, .bucket-okay .bucket-hint, .bucket-urgent .bucket-hint { animation: none; }
   .bucket-title {
     animation: none;
@@ -1320,5 +1371,19 @@ button:disabled { cursor: not-allowed; opacity: 0.45; }
   .badge-icon { filter: none; }
   .badge-icon path[filter] { filter: none; }
   .badge-icon .shine, .badge-icon .sheen { display: none; }
+}
+
+/* ---------- Phones: the top bar slides away while you scroll down ----------
+   It comes back when you scroll up, or when you are at the top of the page.
+   Tablets and laptops keep it fixed. JS toggles .is-hidden on .topbar. */
+@media (max-width: 680px) {
+  .topbar {
+    transition: transform 0.25s ease;
+    will-change: transform;
+  }
+  .topbar.is-hidden { transform: translateY(-100%); }
+}
+@media (max-width: 680px) and (prefers-reduced-motion: reduce) {
+  .topbar { transition: none; }
 }
 

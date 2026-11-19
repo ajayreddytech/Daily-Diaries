@@ -1504,6 +1504,63 @@ document.addEventListener("keydown", e => { if (e.key === "Escape" && !els.manag
    Boot (runs after every function and constant above is defined)
    ========================================================================== */
 
+/* Phones: hide the top bar while scrolling down, show it again on the way up or at the top. */
+(() => {
+  const topbar = document.querySelector(".topbar");
+  let lastY = window.scrollY;
+  let ticking = false;
+
+  const update = () => {
+    ticking = false;
+    const y = Math.max(0, window.scrollY);
+    const delta = y - lastY;
+    if (y <= 40) topbar.classList.remove("is-hidden");
+    else if (delta > 6) topbar.classList.add("is-hidden");
+    else if (delta < -6) topbar.classList.remove("is-hidden");
+    if (Math.abs(delta) > 6) lastY = y;
+  };
+
+  window.addEventListener("scroll", () => {
+    if (!ticking) { ticking = true; requestAnimationFrame(update); }
+  }, { passive: true });
+})();
+
+/* Bioluminescent abyss: small rising spores, and a glowing ripple wherever the user clicks or taps. */
+(() => {
+  const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)");
+  const abyss = document.querySelector(".abyss");
+  const palette = ["0,245,212", "241,91,181", "0,187,249"];
+
+  if (abyss && !reduceMotion.matches) {
+    for (let i = 0; i < 70; i++) {
+      const spore = document.createElement("span");
+      spore.className = "abyss-spore";
+      spore.style.cssText =
+        `--x:${(Math.random() * 100).toFixed(1)}%;` +
+        `--s:${(4 + Math.random() * 8).toFixed(1)}px;` +
+        `--c:${palette[i % palette.length]};` +
+        `--dur:${(12 + Math.random() * 14).toFixed(1)}s;` +
+        `--delay:${(-Math.random() * 26).toFixed(1)}s;` +
+        `--drift:${((Math.random() * 2 - 1) * 80).toFixed(0)}px;` +
+        `--o:${(0.7 + Math.random() * 0.3).toFixed(2)}`;
+      abyss.appendChild(spore);
+    }
+  }
+
+  const RIPPLE_TARGETS = "button, .card, .rating, .task, input, textarea, [role='radio'], [role='checkbox']";
+  document.addEventListener("pointerdown", ev => {
+    if (reduceMotion.matches || !ev.target.closest) return;
+    if (!ev.target.closest(RIPPLE_TARGETS)) return;
+    const ripple = document.createElement("span");
+    ripple.className = "abyss-ripple";
+    ripple.style.setProperty("--c", palette[Math.random() < 0.6 ? 0 : 1]);
+    ripple.style.left = ev.clientX + "px";
+    ripple.style.top = ev.clientY + "px";
+    ripple.addEventListener("animationend", () => ripple.remove());
+    document.body.appendChild(ripple);
+  }, { passive: true });
+})();
+
 renderDate();
 renderQuote();
 renderRatings();
