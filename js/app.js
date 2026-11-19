@@ -1525,7 +1525,7 @@ document.addEventListener("keydown", e => { if (e.key === "Escape" && !els.manag
   }, { passive: true });
 })();
 
-/* Bioluminescent abyss: small rising spores, and a glowing ripple wherever the user clicks or taps. */
+/* Bioluminescent abyss: small rising spores drifting behind the page. */
 (() => {
   const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)");
   const abyss = document.querySelector(".abyss");
@@ -1547,18 +1547,6 @@ document.addEventListener("keydown", e => { if (e.key === "Escape" && !els.manag
     }
   }
 
-  const RIPPLE_TARGETS = "button, .card, .rating, .task, input, textarea, [role='radio'], [role='checkbox']";
-  document.addEventListener("pointerdown", ev => {
-    if (reduceMotion.matches || !ev.target.closest) return;
-    if (!ev.target.closest(RIPPLE_TARGETS)) return;
-    const ripple = document.createElement("span");
-    ripple.className = "abyss-ripple";
-    ripple.style.setProperty("--c", palette[Math.random() < 0.6 ? 0 : 1]);
-    ripple.style.left = ev.clientX + "px";
-    ripple.style.top = ev.clientY + "px";
-    ripple.addEventListener("animationend", () => ripple.remove());
-    document.body.appendChild(ripple);
-  }, { passive: true });
 })();
 
 renderDate();
