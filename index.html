@@ -104,6 +104,12 @@
 
     <main class="page">
 
+      <!-- Shown instead of the page on days before the app was started -->
+      <section class="card no-data" id="no-data" hidden>
+        <h2>No data available</h2>
+        <p>You started using this app on 18 November 2026, so there is nothing recorded for this day.</p>
+      </section>
+
       <!-- Page code: centred at the top of the screen -->
       <div class="page-code" aria-live="polite">
         <span id="save-status" class="save-status">All changes saved</span>
@@ -184,6 +190,7 @@
             <p class="card-sub">Download your commitments for the hours ahead. Record your precious ambitions.</p>
           </div>
           <div class="head-actions">
+            <div id="bucket-summary" class="bucket-summary" role="status" aria-label="Tasks in each bucket"></div>
             <button class="btn btn-ghost btn-sm" id="toggle-all-buckets" aria-pressed="false">Show all buckets</button>
             <button class="btn btn-ghost btn-sm" id="open-manager">Manage all tasks</button>
           </div>
@@ -222,6 +229,11 @@
         <!-- Step 3: buckets -->
         <div id="view-buckets" class="blueprint-view" hidden>
           <p id="past-note" class="past-note" hidden>Read only. These are the tasks still pending on this day.</p>
+          <form id="future-form" class="future-form" hidden>
+            <input id="future-input" class="input" type="text" maxlength="300" autocomplete="off" placeholder="Add a task for this day" aria-label="Task for this day">
+            <select id="future-priority" class="input" aria-label="Priority bucket"></select>
+            <button class="btn btn-ghost" type="submit">Add</button>
+          </form>
           <div class="bucket-nav" aria-label="Priority buckets">
             <button class="icon-btn" id="bucket-prev" aria-label="Previous priority bucket">
               <svg viewBox="0 0 24 24"><path d="M15 6l-6 6 6 6"/></svg>

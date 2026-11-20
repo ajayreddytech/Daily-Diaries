@@ -1381,6 +1381,48 @@ button:disabled { cursor: not-allowed; opacity: 0.45; }
   margin-right: auto;
 }
 .unsorted-note[hidden] { display: none; }
+
+/* Days before the app was started: hide the page, show only the "No data available" card. */
+.no-data { text-align: center; }
+.no-data[hidden] { display: none; }
+.no-data h2 { margin: 0 0 6px; font-size: 1.1rem; }
+.no-data p { margin: 0; color: var(--text-dim); font-size: 0.9rem; }
+.page.before-start > :not(#no-data) { display: none !important; }
+.page.before-start > #no-data:not([hidden]) { display: block; }
+
+/* Future day: add a task that shows only on that day. */
+.future-form { display: flex; flex-wrap: wrap; gap: 8px; margin: 0 0 12px; }
+.future-form[hidden] { display: none; }
+.future-form .input { flex: 1 1 160px; min-width: 0; }
+.future-form select.input { flex: 0 1 auto; }
+
+/* Bucket counts: one pill in the blueprint header, beside the buttons. */
+.bucket-summary {
+  display: inline-flex; align-items: center; flex-wrap: nowrap; white-space: nowrap;
+  padding: 5px 4px; border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  background: var(--surface-2);
+  box-shadow: 0 0 14px rgba(255, 255, 255, 0.04);
+}
+.bs-item {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 3px 11px; font-size: 0.8rem; color: var(--text-dim);
+}
+.bs-item + .bs-item { border-left: 1px solid rgba(255, 255, 255, 0.12); }
+.bs-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--c); box-shadow: 0 0 6px var(--c); flex: 0 0 auto; }
+.bs-count { color: var(--text-faint, var(--text-dim)); font-weight: 700; min-width: 1ch; text-align: center; }
+.bs-item.has-tasks .bs-count { color: var(--c); animation: bs-pulse 2.4s ease-in-out infinite; }
+@keyframes bs-pulse {
+  0%, 100% { opacity: 1; text-shadow: 0 0 0 transparent; }
+  50% { opacity: 0.45; text-shadow: 0 0 8px var(--c); }
+}
+@media (prefers-reduced-motion: reduce) { .bs-item.has-tasks .bs-count { animation: none; } }
+/* Phones: the pill takes its own full-width line, above the buckets. */
+@media (max-width: 640px) {
+  .head-actions { width: 100%; justify-content: flex-start; }
+  .bucket-summary { width: 100%; justify-content: space-between; }
+  .bs-item { flex: 1 1 auto; justify-content: center; padding: 3px 4px; font-size: 0.7rem; gap: 4px; }
+}
 .unsorted-note::before {
   content: ""; width: 8px; height: 8px; border-radius: 50%;
   background: var(--gold); box-shadow: 0 0 8px var(--gold);

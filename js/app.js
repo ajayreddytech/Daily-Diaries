@@ -32,6 +32,8 @@ const normalizePriority = p => (p in LEGACY_PRIORITY ? LEGACY_PRIORITY[p] : (p ?
 // Fallback colour for tasks that are not yet in a bucket (not shown as a chip).
 const UNSORTED = { key: null, label: "Not sorted", color: "#475569", hint: "Not prioritised yet" };
 const PRIORITY_BY_KEY = Object.fromEntries(PRIORITIES.map(p => [p.key, p]));
+// Short names for the one-line bucket summary on phones.
+const SHORT_LABEL = { urgent: "High", normal: "Medium", okay: "Low", whenever: "Whenever" };
 
 // Ratings are shown with a medal name first and the original day name second.
 // Keys are unchanged, so existing saved ratings still match.
@@ -165,6 +167,8 @@ const els = {
   jumpToday: $("#jump-today"),
   todayLabel: $("#today-label"),
   dateLong: $("#page-date-long"),
+  page: $(".page"),
+  noData: $("#no-data"),
   quoteText: $("#quote-text"),
   quoteAuthor: $("#quote-author"),
   saveStatus: $("#save-status"),
@@ -203,6 +207,10 @@ const els = {
   unsortedNote: $("#unsorted-note"),
   blueprintCard: $("#blueprint-card"),
   pastNote: $("#past-note"),
+  futureForm: $("#future-form"),
+  futureInput: $("#future-input"),
+  futurePriority: $("#future-priority"),
+  bucketSummary: $("#bucket-summary"),
   manager: $("#manager"),
   managerList: $("#manager-list"),
   managerEmpty: $("#manager-empty"),
@@ -246,27 +254,28 @@ function setStatus(text, kind = "") {
 
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 
+// A task starts on the day it was added for (createdOn), so a task for a future day stays hidden until then.
+const startedBy = (t, key) => !t.createdOn || t.createdOn <= key;
+
 function openTasks() {
   return tasks
-    .filter(t => t.status !== "done")
+    .filter(t => t.status !== "done" && startedBy(t, today))
     .sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
 }
 // Dump = added but not yet prioritised (no colour).
 const dumpTasks = () => openTasks().filter(t => !t.priority);
 const sortedTasks = () => openTasks().filter(t => !!t.priority);
 
-// Past days show the buckets as they stood on that day: tasks added by then, in a bucket,
-// and not finished before it. Done tasks are not stored with their history, so this uses
-// each task's current bucket and its doneOn date. Tasks with no createdOn date have no
-// known start, so they only appear on today.
+// Past and future days show the buckets as they would stand on that day: tasks that have started
+// by then, in a bucket, and not yet completed. A completed task is cleared from every day's board,
+// earlier days included. Tasks with no createdOn date have no known start, so they only appear on today.
 function pendingOn(key) {
   return tasks
-    .filter(t => t.priority
-      && !!t.createdOn && t.createdOn <= key
-      && (t.status !== "done" || (!!t.doneOn && t.doneOn > key)))
+    .filter(t => t.priority && t.status !== "done" && !!t.createdOn && t.createdOn <= key)
     .sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
 }
-const isPastView = () => viewKey !== today;
+const isFutureView = () => viewKey > today;
+const isPastView = () => viewKey !== today;   // any day other than today: read-only board
 const boardTasks = () => (isPastView() ? pendingOn(viewKey) : sortedTasks());
 
 function nextOrder() {
@@ -626,17 +635,21 @@ for (const kind of Object.keys(ENTRY_KINDS)) {
    Date navigation
    ========================================================================== */
 
+// The app was started on this day. Earlier days have no data, so they show "No data available".
+const START_KEY = "2026-11-18";
+
 function renderDate() {
   const isToday = viewKey === today;
   els.dateLong.textContent = longDate(viewKey);
   // Under the date: "Today" on today's page, otherwise the "Back to today" button.
   els.todayLabel.hidden = !isToday;
   els.jumpToday.hidden = isToday;
-  els.next.disabled = viewKey >= today;
+  const beforeStart = viewKey < START_KEY;
+  els.noData.hidden = !beforeStart;
+  els.page.classList.toggle("before-start", beforeStart);
 }
 
 function goToDay(key) {
-  if (key > today) return;
   flushSave();
   document.activeElement?.blur?.();
   viewKey = key;
@@ -912,6 +925,10 @@ function renderBlueprint() {
   els.blueprintCard.hidden = false;
   els.openManager.hidden = past;
   els.pastNote.hidden = !past;
+  els.pastNote.textContent = isFutureView()
+    ? "A day ahead. Tasks you add here show up only on this day."
+    : "Read only. These are the tasks still pending on this day.";
+  els.futureForm.hidden = !isFutureView();
   els.addMore.hidden = past;
   if (past) {
     els.viewDump.hidden = true;
@@ -979,6 +996,20 @@ function renderBoard() {
       )
     ));
   }
+  renderBucketSummary(sorted);
+}
+
+// One line above "Completed": how many tasks sit in each bucket on the day shown.
+function renderBucketSummary(sorted) {
+  els.bucketSummary.innerHTML = "";
+  for (const p of PRIORITIES) {
+    const n = sorted.filter(t => t.priority === p.key).length;
+    els.bucketSummary.append(el("span", { class: "bs-item" + (n ? " has-tasks" : ""), style: { "--c": p.color }, title: p.label },
+      el("i", { class: "bs-dot", "aria-hidden": "true" }),
+      el("span", { class: "bs-name", text: SHORT_LABEL[p.key] }),
+      el("b", { class: "bs-count", text: String(n) })
+    ));
+  }
 }
 
 function taskItem(t, readOnly = false) {
@@ -1026,9 +1057,12 @@ async function completeTask(id, li) {
 }
 
 function renderCompleted() {
+  // Newest first: the task completed most recently sits at the top.
+  // A task just completed has no server time yet, so it counts as now.
+  const doneAt = t => t.completedAt?.toMillis?.() ?? Date.now();
   const done = tasks
     .filter(t => t.status === "done" && t.doneOn === viewKey)
-    .sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
+    .sort((a, b) => doneAt(b) - doneAt(a));
   els.completed.hidden = done.length === 0;
   els.completedCount.textContent = String(done.length);
   els.completedList.innerHTML = "";
@@ -1079,6 +1113,37 @@ els.taskForm.addEventListener("submit", async e => {
   els.taskInput.focus();
   try { await addTask(text); }
   catch { els.taskInput.value = text; }
+});
+
+// Adds a task for a future day. It goes straight into a bucket and only shows on that day.
+async function addFutureTask(text, priority) {
+  if (!user || !text.trim() || !isFutureView()) return;
+  const day = viewKey;
+  try {
+    await addDoc(tasksCol(user.uid), {
+      text: capitalizeWords(text).slice(0, 300),
+      priority,
+      order: nextOrder(),
+      status: "open",
+      createdOn: day,
+      doneOn: null,
+      createdAt: serverTimestamp()
+    });
+    toast(`Added for ${longDate(day)}`, 2200);
+  } catch (err) {
+    toast("Could not add task: " + err.message);
+    throw err;
+  }
+}
+
+for (const p of PRIORITIES) els.futurePriority.append(el("option", { value: p.key, text: p.label }));
+els.futureForm.addEventListener("submit", async e => {
+  e.preventDefault();
+  const text = els.futureInput.value.trim();
+  if (!text) return;
+  els.futureInput.value = "";
+  try { await addFutureTask(text, els.futurePriority.value); }
+  catch { els.futureInput.value = text; }
 });
 
 async function setTaskPriority(id, key) {
