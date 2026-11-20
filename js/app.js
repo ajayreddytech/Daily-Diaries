@@ -142,6 +142,7 @@ let taskSpeech = null;
 let managerSpeech = null;
 let activeMicStop = null;       // stops whichever microphone is currently on
 let bucketIndex = 0;            // which priority bucket is shown (0-3)
+let showAllBuckets = false;     // true: all four buckets visible at once
 
 /* ==========================================================================
    DOM refs
@@ -197,6 +198,9 @@ const els = {
   submitBtn: $("#submit-page"),
   submitNote: $("#submit-note"),
   openManager: $("#open-manager"),
+  toggleBuckets: $("#toggle-all-buckets"),
+  backBuckets: $("#back-buckets"),
+  unsortedNote: $("#unsorted-note"),
   blueprintCard: $("#blueprint-card"),
   pastNote: $("#past-note"),
   manager: $("#manager"),
@@ -890,6 +894,17 @@ els.goPrioritize.addEventListener("click", () => showView("prioritize"));
 els.backDump.addEventListener("click", () => showView("dump"));
 els.showBuckets.addEventListener("click", () => showView("buckets"));
 els.addMore.addEventListener("click", () => showView("dump"));
+els.backBuckets.addEventListener("click", () => showView("buckets"));
+
+// "Show all buckets" toggles between one bucket at a time and all four at once.
+function setShowAllBuckets(on) {
+  showAllBuckets = on;
+  els.blueprintCard.classList.toggle("show-all-buckets", on);
+  els.toggleBuckets.setAttribute("aria-pressed", String(on));
+  els.toggleBuckets.textContent = on ? "Show one bucket" : "Show all buckets";
+  renderBucketNav();
+}
+els.toggleBuckets.addEventListener("click", () => setShowAllBuckets(!showAllBuckets));
 
 function renderBlueprint() {
   const past = isPastView();
@@ -931,7 +946,8 @@ function renderDump() {
 
 function renderPrioritize() {
   if (view !== "prioritize" || isEditingTaskText()) return;
-  const list = openTasks().filter(t => preparing.has(t.id));
+  // Tasks in this step, plus any task added since it opened (such as from the manager) that has no colour yet.
+  const list = openTasks().filter(t => preparing.has(t.id) || !t.priority);
   els.prioritizeList.innerHTML = "";
   list.forEach(t => els.prioritizeList.append(managerItem(t)));
 }
@@ -943,6 +959,11 @@ function renderBoard() {
   els.buckets.innerHTML = "";
   els.buckets.classList.toggle("is-readonly", past);
   els.bucketsEmpty.hidden = sorted.length > 0 || past;
+
+  // Quiet reminder: tasks still waiting to be put in a priority bucket.
+  const unsorted = dumpTasks().length;
+  els.unsortedNote.hidden = past || unsorted === 0;
+  els.unsortedNote.textContent = `${unsorted} Task${unsorted === 1 ? " Is" : "s Are"} Not Prioritised Yet`;
 
   for (const p of PRIORITIES) {
     const items = sorted.filter(t => t.priority === p.key);
@@ -1395,6 +1416,7 @@ function renderBucketNav() {
 }
 
 function shiftBucket(step) {
+  if (showAllBuckets) return;   // all buckets are visible, so there is nothing to move between
   const next = Math.min(PRIORITIES.length - 1, Math.max(0, bucketIndex + step));
   if (next === bucketIndex) return;
   bucketIndex = next;

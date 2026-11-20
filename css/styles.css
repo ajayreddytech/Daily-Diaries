@@ -1369,3 +1369,36 @@ button:disabled { cursor: not-allowed; opacity: 0.45; }
   .topbar { transition: none; }
 }
 
+/* Reminder in the buckets view: tasks still waiting for a priority bucket. */
+.unsorted-note {
+  display: inline-flex; align-items: center; gap: 8px;
+  padding: 6px 14px; border-radius: 999px;
+  border: 1px solid var(--gold);
+  background: rgba(241, 91, 181, 0.14);
+  color: var(--text);
+  font-size: 0.85rem; font-weight: 600;
+  box-shadow: 0 0 16px rgba(241, 91, 181, 0.35);
+  margin-right: auto;
+}
+.unsorted-note[hidden] { display: none; }
+.unsorted-note::before {
+  content: ""; width: 8px; height: 8px; border-radius: 50%;
+  background: var(--gold); box-shadow: 0 0 8px var(--gold);
+}
+
+/* ---------- Header buttons: Show all buckets + Manage all tasks ---------- */
+.head-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px; flex: 0 0 auto; }
+
+/* "Show all buckets": every bucket visible at once. Phones stack them as four rows,
+   wider screens show four columns. Turning it off returns to the one-bucket view. */
+.show-all-buckets .bucket-nav { display: none; }
+.show-all-buckets .buckets:not(.dragging-all) { display: flex; flex-direction: column; gap: 12px; overflow: visible; }
+.show-all-buckets .buckets:not(.dragging-all) .bucket {
+  grid-area: auto; flex: none; visibility: visible; pointer-events: auto;
+}
+@media (min-width: 900px) {
+  .show-all-buckets .buckets:not(.dragging-all) {
+    display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); align-items: start;
+  }
+}
+

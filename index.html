@@ -183,7 +183,10 @@
             <h2 id="blueprint-title" class="card-title">Pre-Performance Blueprint</h2>
             <p class="card-sub">Download your commitments for the hours ahead. Record your precious ambitions.</p>
           </div>
-          <button class="btn btn-ghost btn-sm" id="open-manager">Manage all tasks</button>
+          <div class="head-actions">
+            <button class="btn btn-ghost btn-sm" id="toggle-all-buckets" aria-pressed="false">Show all buckets</button>
+            <button class="btn btn-ghost btn-sm" id="open-manager">Manage all tasks</button>
+          </div>
         </div>
 
         <!-- Step 1: dump tasks (no colours yet) -->
@@ -201,6 +204,7 @@
           <p id="dump-empty" class="empty">Nothing dumped yet. Speak or type your to-dos above.</p>
           <div class="view-actions">
             <span class="muted small" id="dump-count"></span>
+            <button class="btn btn-ghost" id="back-buckets">Back to buckets</button>
             <button class="btn btn-primary" id="go-prioritize" disabled>Prioritize tasks</button>
           </div>
         </div>
@@ -230,6 +234,7 @@
           <div class="buckets" id="buckets"></div>
           <p id="buckets-empty" class="empty" hidden>No prioritised tasks yet. Dump your to-dos, then prioritise them.</p>
           <div class="view-actions">
+            <span class="unsorted-note" id="unsorted-note" role="status" hidden></span>
             <button class="btn btn-ghost" id="add-more">Add more tasks</button>
           </div>
           <details class="completed" id="completed-today" hidden>
