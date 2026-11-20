@@ -32,6 +32,8 @@ const normalizePriority = p => (p in LEGACY_PRIORITY ? LEGACY_PRIORITY[p] : (p ?
 // Fallback colour for tasks that are not yet in a bucket (not shown as a chip).
 const UNSORTED = { key: null, label: "Not sorted", color: "#475569", hint: "Not prioritised yet" };
 const PRIORITY_BY_KEY = Object.fromEntries(PRIORITIES.map(p => [p.key, p]));
+// The diary starts on this day. Earlier days show "No data available" (nothing is deleted).
+const DATA_START = "2026-11-18";
 
 // Ratings are shown with a medal name first and the original day name second.
 // Keys are unchanged, so existing saved ratings still match.
@@ -202,6 +204,8 @@ const els = {
   backBuckets: $("#back-buckets"),
   unsortedNote: $("#unsorted-note"),
   blueprintCard: $("#blueprint-card"),
+  dayBody: $("#day-body"),
+  noData: $("#no-data"),
   pastNote: $("#past-note"),
   manager: $("#manager"),
   managerList: $("#manager-list"),
@@ -246,9 +250,11 @@ function setStatus(text, kind = "") {
 
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 
+// A task starts on the day it was added, or on the future day it was added for (showFrom).
+const startKey = t => t.showFrom || t.createdOn || "";
 function openTasks() {
   return tasks
-    .filter(t => t.status !== "done")
+    .filter(t => t.status !== "done" && startKey(t) <= today)
     .sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
 }
 // Dump = added but not yet prioritised (no colour).
@@ -262,11 +268,12 @@ const sortedTasks = () => openTasks().filter(t => !!t.priority);
 function pendingOn(key) {
   return tasks
     .filter(t => t.priority
-      && !!t.createdOn && t.createdOn <= key
+      && !!t.createdOn && startKey(t) <= key
       && (t.status !== "done" || (!!t.doneOn && t.doneOn > key)))
     .sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
 }
 const isPastView = () => viewKey !== today;
+const isFutureView = () => viewKey > today;
 const boardTasks = () => (isPastView() ? pendingOn(viewKey) : sortedTasks());
 
 function nextOrder() {
@@ -633,6 +640,10 @@ function renderDate() {
   els.todayLabel.hidden = !isToday;
   els.jumpToday.hidden = isToday;
   els.next.disabled = viewKey >= today;
+  // Days before the diary started show no data (the stored data is left as it is).
+  const none = viewKey < DATA_START;
+  els.dayBody.hidden = none;
+  els.noData.hidden = !none;
 }
 
 function goToDay(key) {
@@ -908,15 +919,19 @@ els.toggleBuckets.addEventListener("click", () => setShowAllBuckets(!showAllBuck
 
 function renderBlueprint() {
   const past = isPastView();
+  const future = isFutureView();
   // Always shown, so a past day keeps its priority buckets even when no tasks were pending.
   els.blueprintCard.hidden = false;
   els.openManager.hidden = past;
-  els.pastNote.hidden = !past;
+  els.pastNote.hidden = !past || future;
   els.addMore.hidden = past;
+  els.viewDump.querySelector(".view-actions").hidden = past;
   if (past) {
-    els.viewDump.hidden = true;
+    // A future day shows the tasks added for it, with a box to add more for that day.
+    els.viewDump.hidden = !future;
     els.viewPrioritize.hidden = true;
     els.viewBuckets.hidden = false;
+    if (future) renderDump();
   } else if (view) {
     els.viewDump.hidden = view !== "dump";
     els.viewPrioritize.hidden = view !== "prioritize";
@@ -928,8 +943,18 @@ function renderBlueprint() {
   renderCompleted();
 }
 
+// Tasks added for a future day say how many days before that day they were added.
+function addedLabel(t, refKey) {
+  const days = daysBetween(t.createdOn, refKey);
+  return `Added ${days} day${days === 1 ? "" : "s"} before`;
+}
+
 function renderDump() {
-  const dump = dumpTasks();
+  const future = isFutureView();
+  // A future day lists the tasks added for it. Other days list the tasks still to prioritise.
+  const dump = future
+    ? tasks.filter(t => t.status !== "done" && t.showFrom === viewKey)
+    : dumpTasks();
   els.dumpList.innerHTML = "";
   for (const t of dump) {
     const del = el("button", {
@@ -937,10 +962,14 @@ function renderDump() {
       onclick: () => deleteTask(t)
     });
     del.innerHTML = TRASH_SVG;
-    els.dumpList.append(el("li", { class: "dump-item" }, el("span", { class: "dump-text", text: t.text }), del));
+    const meta = t.showFrom ? el("span", { class: "task-meta" }, el("span", { class: "carry", text: addedLabel(t, viewKey) })) : null;
+    els.dumpList.append(el("li", { class: "dump-item" }, el("span", { class: "dump-text" }, t.text, meta), del));
   }
   els.dumpEmpty.hidden = dump.length > 0;
-  els.dumpCount.textContent = dump.length ? `${dump.length} to prioritise` : "";
+  els.dumpEmpty.textContent = future
+    ? "Nothing added for this day yet. Tasks added here stay hidden until this day arrives."
+    : "Nothing dumped yet. Speak or type your to-dos above.";
+  els.dumpCount.textContent = dump.length && !future ? `${dump.length} to prioritise` : "";
   els.goPrioritize.disabled = dump.length === 0;
 }
 
@@ -971,7 +1000,7 @@ function renderBoard() {
     els.buckets.append(el("section", { class: "bucket bucket-" + p.key + (hidden ? " is-hidden" : ""), style: { "--c": p.color }, "aria-label": p.label },
       el("div", { class: "bucket-head" },
         el("span", { class: "bucket-title", text: p.label }),
-        el("span", { class: "bucket-count", text: String(items.length) })
+        el("span", { class: "bucket-count", text: `${items.length} task${items.length === 1 ? "" : "s"}` })
       ),
       el("p", { class: "bucket-hint", text: p.hint }),
       el("ul", { class: "bucket-list", "data-priority": p.key },
@@ -1026,9 +1055,11 @@ async function completeTask(id, li) {
 }
 
 function renderCompleted() {
+  // Most recently completed first. A task just ticked has no server time yet, so it counts as now.
+  const doneTime = t => t.completedAt?.toMillis?.() ?? Date.now();
   const done = tasks
     .filter(t => t.status === "done" && t.doneOn === viewKey)
-    .sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
+    .sort((a, b) => doneTime(b) - doneTime(a));
   els.completed.hidden = done.length === 0;
   els.completedCount.textContent = String(done.length);
   els.completedList.innerHTML = "";
@@ -1060,6 +1091,7 @@ async function addTask(text) {
       order: nextOrder(),
       status: "open",
       createdOn: today,
+      showFrom: isFutureView() ? viewKey : null,   // added for a future day: hidden until then
       doneOn: null,
       createdAt: serverTimestamp()
     });
