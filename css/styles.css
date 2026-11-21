@@ -65,7 +65,13 @@ html, body {
 body {
   background: transparent;   /* the abyss layer (.abyss) sits behind everything */
   min-height: 100dvh;
+  /* Every word on screen starts with a capital letter (buttons, labels, tasks, quotes, messages). */
+  text-transform: capitalize;
 }
+/* Gratitude and letting-go entries are the user's own words, so they keep exactly what was written. */
+.numbered-list, .entry-input { text-transform: none; }
+/* Browsers switch off text-transform on buttons by default, so buttons must be set explicitly. */
+button, .btn, .btn-text { text-transform: capitalize; }
 
 /* Every foreground element sits above the background layer. */
 .app,
@@ -327,7 +333,7 @@ button:disabled { cursor: not-allowed; opacity: 0.45; }
   font-size: 0.7rem;
   font-weight: 600;
   letter-spacing: 0.14em;
-  text-transform: uppercase;
+  text-transform: capitalize;
   color: var(--text-faint);
   white-space: nowrap;
 }
@@ -391,7 +397,7 @@ button:disabled { cursor: not-allowed; opacity: 0.45; }
   font-size: 0.75rem;
   font-weight: 700;
   letter-spacing: 0.16em;
-  text-transform: uppercase;
+  text-transform: capitalize;
   color: var(--text-faint);
   margin-bottom: 10px;
 }
@@ -663,7 +669,7 @@ button:disabled { cursor: not-allowed; opacity: 0.45; }
   font-size: 0.8rem;
   font-weight: 700;
   letter-spacing: 0.08em;
-  text-transform: uppercase;
+  text-transform: capitalize;
   color: var(--text-faint);
   margin-bottom: 6px;
 }
@@ -1243,6 +1249,8 @@ button:disabled { cursor: not-allowed; opacity: 0.45; }
 
 /* Past days: the same buckets, read only. */
 .past-note { margin: 0 0 10px; font-size: 0.85rem; color: var(--text-faint); font-style: italic; }
+/* An earlier day's blueprint is a record: nothing on it can be tapped, dragged or changed. */
+.buckets.is-readonly { pointer-events: none; }
 .buckets.is-readonly .task { cursor: default; }
 .buckets.is-readonly .task:hover { transform: none; }
 
@@ -1269,7 +1277,7 @@ button:disabled { cursor: not-allowed; opacity: 0.45; }
   font-weight: 600;
   color: var(--text-faint);
   letter-spacing: 0.08em;
-  text-transform: uppercase;
+  text-transform: capitalize;
 }
 
 @media (max-width: 680px) {
@@ -1421,8 +1429,136 @@ button:disabled { cursor: not-allowed; opacity: 0.45; }
 @media (max-width: 640px) {
   .head-actions { width: 100%; justify-content: flex-start; }
   .bucket-summary { width: 100%; justify-content: space-between; }
+  /* Show one bucket and Lock buckets share one row on phones. */
+  #toggle-all-buckets, #lock-buckets { flex: 1 1 0; min-width: 0; padding: 0 10px; }
   .bs-item { flex: 1 1 auto; justify-content: center; padding: 3px 4px; font-size: 0.7rem; gap: 4px; }
 }
+/* The note is a button: tapping it opens the prioritise step. */
+button.unsorted-note { font: inherit; font-size: 0.85rem; font-weight: 600; cursor: pointer; touch-action: manipulation; }
+button.unsorted-note:hover { background: rgba(241, 91, 181, 0.24); }
+
+/* Locked days: gratitude, letting go, the rating and submit are shown but cannot be changed. */
+.day-lockable { transition: opacity .2s; }
+.page.day-locked .day-lockable { opacity: .7; pointer-events: none; }
+.lock-note {
+  margin: -4px 0 0; text-align: center;
+  font-size: 0.85rem; font-style: italic; color: var(--text-faint);
+}
+.lock-note[hidden] { display: none; }
+
+/* My stars panel */
+.stars-summary { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; padding: 12px 0 4px; }
+.stat {
+  display: grid; gap: 2px; padding: 12px;
+  background: var(--bg); border: 1px solid var(--border-soft); border-radius: 14px;
+}
+.stat b { font-size: 1.5rem; color: var(--text); }
+.stat span { font-size: 0.8rem; color: var(--text-dim); }
+/* Monthly calendar of medals */
+.cal-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 8px 0; }
+.cal-title { margin: 0; font-size: 1.05rem; color: var(--text); text-align: center; }
+.cal-grid {
+  display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 4px;
+}
+.cal-wd { text-align: center; font-size: 0.7rem; color: var(--text-faint); padding: 4px 0; }
+/* The stars popup is sized to fit one screen: a narrow panel and short day cells. */
+.stars-modal .modal-panel {
+  width: min(440px, 100%); overflow: hidden;
+  padding-bottom: calc(18px + env(safe-area-inset-bottom, 0px));
+}
+.stars-modal .stars-summary { padding: 8px 0 0; }
+.stars-modal .stat { padding: 8px 10px; }
+.stars-modal .stat b { font-size: 1.25rem; }
+/* Day cells grow with the screen, but the whole popup stays inside it. */
+.cal-cell {
+  position: relative; height: clamp(30px, calc((92dvh - 440px) / 6 - 4px), 56px); min-width: 0;
+  display: flex; align-items: center; justify-content: center;
+  border-radius: 10px; background: var(--bg); border: 1px solid var(--border-soft);
+}
+.cal-cell.is-blank { background: transparent; border-color: transparent; }
+.cal-cell.is-off { opacity: 0.35; }
+.cal-cell.is-today { border-color: var(--success); }
+.cal-day {
+  position: absolute; top: 4px; left: 6px;
+  font-size: 0.78rem; font-weight: 600; line-height: 1; color: var(--text-dim);
+}
+.cal-badge { width: 56%; height: 56%; margin-top: 12%; }
+@media (max-height: 760px) {
+  .stars-modal .card-sub { display: none; }
+}
+/* The four medal names sit in one row: each medal with its name under it. */
+.cal-legend {
+  list-style: none; margin: 18px 0 0; padding: 14px 4px 0; border-top: 1px solid var(--border-soft);
+  display: flex; flex-wrap: nowrap; justify-content: space-between; gap: 6px;
+  font-size: 0.8rem; color: var(--text-dim);
+}
+.cal-legend li { display: flex; flex-direction: column; align-items: center; gap: 4px; min-width: 0; text-align: center; }
+.cal-legend .cal-badge { width: 24px; height: 24px; margin: 0; }
+
+/* The "Tasks Completed" tile has a small Clear button in its top-right corner. */
+.stars-modal .stat.has-clear { position: relative; padding-right: 66px; }
+/* Phones: the Tasks Completed tile is wider than the Days Rated tile, so its label fits on two lines. */
+@media (max-width: 640px) {
+  .stars-modal .stars-summary { grid-template-columns: 2fr 1fr; }
+  .stars-modal .stat.has-clear { padding-right: 58px; }
+}
+.stars-modal .stat .stat-clear {
+  position: absolute; top: 6px; right: 6px;
+  min-height: 26px; padding: 0 10px; font-size: 0.72rem; line-height: 1;
+}
+
+/* Laptops: taller day cells, and the popup can use most of the screen height. */
+@media (min-width: 720px) {
+  .stars-modal .modal-panel { max-height: 92dvh; padding-bottom: 22px; }
+  .stars-modal .cal-cell { height: clamp(40px, calc((92dvh - 400px) / 6 - 4px), 64px); }
+}
+/* Tap a task's text to edit it in place (dump list and buckets). */
+.dump-item, .dump-text, .task-text { cursor: text; touch-action: manipulation; }   /* no 300ms tap delay on phones */
+.dump-item .m-del { cursor: pointer; }
+.task-edit { flex: 1 1 auto; min-width: 0; width: 100%; font: inherit; }
+
+/* "All High / All Medium / ..." buttons: one tidy row above the task list. */
+.quick-sort {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 8px;
+  padding: 10px 12px; border-radius: 14px;
+  background: var(--bg); border: 1px dashed var(--border-soft);
+}
+.quick-sort[hidden] { display: none; }
+.quick-sort .qs-label { color: var(--text-dim); font-size: 0.85rem; margin-right: 4px; }
+.qs-btn { min-height: 34px; padding: 0 14px 0 11px; font-size: 0.85rem; gap: 7px; }
+.qs-btn:hover:not(:disabled) { border-color: var(--c); }
+.qs-btn:disabled { opacity: 0.4; cursor: default; }
+.qs-dot { width: 9px; height: 9px; border-radius: 50%; background: var(--c); box-shadow: 0 0 6px var(--c); flex: 0 0 auto; }
+#manager-quick-sort { margin-bottom: 12px; }
+
+/* Phones: the label sits on its own line, and the four priority buttons share one row below it.
+   The word "All" is dropped; if a name is still too long for its button it is cut short, never spilling over. */
+@media (max-width: 640px) {
+  .quick-sort { flex-wrap: wrap; gap: 6px; padding: 8px; }
+  .quick-sort .qs-label { flex: 0 0 100%; margin: 0 0 0 2px; }
+  .qs-btn {
+    flex: 1 1 0; min-width: 0; justify-content: center; white-space: nowrap; overflow: hidden;
+    min-height: 34px; padding: 0 3px; gap: 4px; font-size: 0.75rem;
+  }
+  .qs-btn > span:last-child { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+  .qs-btn .qs-all, .qs-btn .qs-full { display: none; }
+  .qs-btn .qs-short { display: inline; }
+}
+.qs-short { display: none; }
+@media (max-width: 380px) {
+  .qs-btn { gap: 3px; font-size: 0.7rem; }
+  .qs-dot { width: 7px; height: 7px; }
+}
+
+/* Line icons on the header buttons (bucket, padlock, list). */
+.btn-icon {
+  width: 16px; height: 16px; flex: 0 0 auto;
+  fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round;
+}
+
+/* The lock button while the bucket view is locked. */
+#lock-buckets.is-locked { border-color: var(--accent); box-shadow: 0 0 14px rgba(0, 245, 212, 0.25); }
+
 .unsorted-note::before {
   content: ""; width: 8px; height: 8px; border-radius: 50%;
   background: var(--gold); box-shadow: 0 0 8px var(--gold);

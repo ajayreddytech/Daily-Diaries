@@ -96,6 +96,7 @@
             <span id="user-initial" class="avatar avatar-initial" aria-hidden="true" hidden></span>
           </button>
           <div id="user-menu-pop" class="user-pop" role="menu" hidden>
+            <button type="button" class="user-pop-item" id="open-stars" role="menuitem">My Stars</button>
             <button type="button" class="user-pop-item" id="signout" role="menuitem">Sign out</button>
           </div>
         </div>
@@ -115,6 +116,7 @@
         <span id="save-status" class="save-status">All changes saved</span>
         <span id="submitted-badge" class="page-flag" hidden>Submitted</span>
       </div>
+      <p id="day-lock-note" class="lock-note" hidden></p>
 
       <!-- 1. Quote of the day -->
       <section class="quote-plain" aria-labelledby="quote-title">
@@ -126,7 +128,7 @@
       </section>
 
       <!-- 2. Gratitude (full width) -->
-        <section class="card" aria-labelledby="gratitude-title">
+        <section class="card day-lockable" aria-labelledby="gratitude-title">
           <div class="card-head">
             <div>
               <div class="card-title-row">
@@ -155,7 +157,7 @@
         </section>
 
         <!-- 3. Let it go -->
-        <section class="card" aria-labelledby="release-title">
+        <section class="card day-lockable" aria-labelledby="release-title">
           <div class="card-head">
             <div>
               <div class="card-title-row">
@@ -191,8 +193,9 @@
           </div>
           <div class="head-actions">
             <div id="bucket-summary" class="bucket-summary" role="status" aria-label="Tasks in each bucket"></div>
-            <button class="btn btn-ghost btn-sm" id="toggle-all-buckets" aria-pressed="false">Show all buckets</button>
-            <button class="btn btn-ghost btn-sm" id="open-manager">Manage all tasks</button>
+            <button class="btn btn-ghost btn-sm" id="toggle-all-buckets" aria-pressed="false"><svg class="btn-icon" viewBox="0 0 24 24" aria-hidden="true"><g transform="translate(0 0) scale(0.4583)"><path d="M4 10h16l-1.8 9.4a1.6 1.6 0 0 1-1.6 1.3H7.4a1.6 1.6 0 0 1-1.6-1.3L4 10z"/><path d="M7.5 10a4.5 4.5 0 0 1 9 0"/></g><g transform="translate(12.5 0) scale(0.4583)"><path d="M4 10h16l-1.8 9.4a1.6 1.6 0 0 1-1.6 1.3H7.4a1.6 1.6 0 0 1-1.6-1.3L4 10z"/><path d="M7.5 10a4.5 4.5 0 0 1 9 0"/></g><g transform="translate(0 12.5) scale(0.4583)"><path d="M4 10h16l-1.8 9.4a1.6 1.6 0 0 1-1.6 1.3H7.4a1.6 1.6 0 0 1-1.6-1.3L4 10z"/><path d="M7.5 10a4.5 4.5 0 0 1 9 0"/></g><g transform="translate(12.5 12.5) scale(0.4583)"><path d="M4 10h16l-1.8 9.4a1.6 1.6 0 0 1-1.6 1.3H7.4a1.6 1.6 0 0 1-1.6-1.3L4 10z"/><path d="M7.5 10a4.5 4.5 0 0 1 9 0"/></g></svg><span class="btn-text">All</span></button>
+            <button class="btn btn-ghost btn-sm" id="lock-buckets" aria-pressed="false"><svg class="btn-icon" viewBox="0 0 24 24" aria-hidden="true"><rect x="5" y="10.5" width="14" height="10" rx="2"/><path d="M8 10.5V7.5a4 4 0 0 1 8 0v3"/></svg><span class="btn-text">Lock</span></button>
+            <button class="btn btn-ghost btn-sm" id="open-manager"><svg class="btn-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6.5h11M9 12h11M9 17.5h11"/><circle cx="4.5" cy="6.5" r="1"/><circle cx="4.5" cy="12" r="1"/><circle cx="4.5" cy="17.5" r="1"/></svg><span class="btn-text">Manage</span></button>
           </div>
         </div>
 
@@ -219,21 +222,17 @@
         <!-- Step 2: colour each task -->
         <div id="view-prioritize" class="blueprint-view" hidden>
           <p class="card-sub">Give each task a colour. Drag the handle to reorder.</p>
+          <div id="prio-quick-sort" class="quick-sort" role="group" aria-label="Put all of these tasks in one priority"></div>
           <div id="prioritize-list" class="manager-list prioritize-list"></div>
           <div class="view-actions">
             <button class="btn btn-ghost" id="back-dump">Back to dump</button>
-            <button class="btn btn-primary" id="show-buckets">Show buckets</button>
+            <button class="btn btn-primary" id="show-buckets">Done</button>
           </div>
         </div>
 
         <!-- Step 3: buckets -->
         <div id="view-buckets" class="blueprint-view" hidden>
           <p id="past-note" class="past-note" hidden>Read only. These are the tasks still pending on this day.</p>
-          <form id="future-form" class="future-form" hidden>
-            <input id="future-input" class="input" type="text" maxlength="300" autocomplete="off" placeholder="Add a task for this day" aria-label="Task for this day">
-            <select id="future-priority" class="input" aria-label="Priority bucket"></select>
-            <button class="btn btn-ghost" type="submit">Add</button>
-          </form>
           <div class="bucket-nav" aria-label="Priority buckets">
             <button class="icon-btn" id="bucket-prev" aria-label="Previous priority bucket">
               <svg viewBox="0 0 24 24"><path d="M15 6l-6 6 6 6"/></svg>
@@ -246,7 +245,7 @@
           <div class="buckets" id="buckets"></div>
           <p id="buckets-empty" class="empty" hidden>No prioritised tasks yet. Dump your to-dos, then prioritise them.</p>
           <div class="view-actions">
-            <span class="unsorted-note" id="unsorted-note" role="status" hidden></span>
+            <button type="button" class="unsorted-note" id="unsorted-note" hidden></button>
             <button class="btn btn-ghost" id="add-more">Add more tasks</button>
           </div>
           <details class="completed" id="completed-today" hidden>
@@ -257,7 +256,7 @@
       </section>
 
       <!-- 5. Rate the day -->
-      <section class="card" aria-labelledby="rating-title">
+      <section class="card day-lockable" aria-labelledby="rating-title">
         <div class="card-head">
           <div>
             <h2 id="rating-title" class="card-title">Rate the day</h2>
@@ -267,7 +266,7 @@
         <div class="ratings" id="ratings" role="radiogroup" aria-label="Rate the day"></div>
       </section>
 
-      <div class="submit-row">
+      <div class="submit-row day-lockable">
         <p class="muted small" id="submit-note">Submit when the day is done. Your page is saved as you type either way.</p>
         <button class="btn btn-primary btn-lg" id="submit-page">Submit today's page</button>
       </div>
@@ -286,12 +285,44 @@
             <svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg>
           </button>
         </header>
+        <div id="manager-quick-sort" class="quick-sort" role="group" aria-label="Put all unprioritised tasks in one priority"></div>
         <div class="manager-list" id="manager-list"></div>
         <p id="manager-empty" class="empty" hidden>No open tasks yet.</p>
         <div class="modal-foot">
           <span class="muted small" id="manager-count"></span>
           <button class="btn btn-primary" data-close>Done</button>
         </div>
+      </div>
+    </div>
+
+    <!-- My stars: each rated day, and the tasks completed since the app was started -->
+    <div class="modal stars-modal" id="stars" hidden role="dialog" aria-modal="true" aria-labelledby="stars-title">
+      <div class="modal-backdrop" data-close></div>
+      <div class="modal-panel">
+        <header class="modal-head">
+          <div>
+            <h2 id="stars-title" class="card-title">My Stars</h2>
+            <p class="card-sub">The Medal You Gave Each Day, Shown On The Calendar.</p>
+          </div>
+          <button class="icon-btn" data-close aria-label="Close">
+            <svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg>
+          </button>
+        </header>
+        <div class="stars-summary">
+          <div class="stat has-clear"><b id="stars-done">0</b><span>Tasks Completed Since You Started</span><button type="button" class="btn btn-ghost stat-clear" id="clear-completed" aria-label="Clear completed tasks">Clear</button></div>
+          <div class="stat"><b id="stars-rated">0</b><span>Days Rated</span></div>
+        </div>
+        <div class="cal-head">
+          <button type="button" class="icon-btn" id="cal-prev" aria-label="Previous month">
+            <svg viewBox="0 0 24 24"><path d="M15 6l-6 6 6 6"/></svg>
+          </button>
+          <h3 id="cal-title" class="cal-title" aria-live="polite"></h3>
+          <button type="button" class="icon-btn" id="cal-next" aria-label="Next month">
+            <svg viewBox="0 0 24 24"><path d="M9 6l6 6-6 6"/></svg>
+          </button>
+        </div>
+        <div class="cal-grid" id="cal-grid" role="grid" aria-label="Rated days this month"></div>
+        <ul class="cal-legend" id="cal-legend"></ul>
       </div>
     </div>
 

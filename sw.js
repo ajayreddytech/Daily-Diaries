@@ -1,6 +1,6 @@
 // Daily Diaries service worker: makes the app load offline as an installed PWA.
 // Only same-origin GET requests are cached. Firebase / Google traffic is never cached here.
-const CACHE = "daily-diaries-v12";
+const CACHE = "daily-diaries-v13";
 const SHELL = [
   "./",
   "index.html",

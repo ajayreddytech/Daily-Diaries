@@ -9,7 +9,7 @@ import {
 } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-auth.js";
 import {
   initializeFirestore, memoryLocalCache,
-  doc, collection, onSnapshot, setDoc, updateDoc, deleteDoc, addDoc, writeBatch,
+  doc, collection, onSnapshot, setDoc, updateDoc, deleteDoc, addDoc, writeBatch, getDocs,
   serverTimestamp
 } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore.js";
 import { firebaseConfig } from "./firebase-config.js";
@@ -98,6 +98,7 @@ if (configured) {
 const dayRef = (uid, key) => doc(db, "users", uid, "days", key);
 const tasksCol = uid => collection(db, "users", uid, "tasks");
 const taskRef = (uid, id) => doc(db, "users", uid, "tasks", id);
+const prefsRef = uid => doc(db, "users", uid, "settings", "blueprint");
 
 /* ==========================================================================
    Date and text helpers (function declarations are hoisted, so they are safe
@@ -138,6 +139,7 @@ let dayUnsub = null;
 let tasksUnsub = null;
 let view = null;                // "dump" | "prioritize" | "buckets"; null until tasks load
 let preparing = new Set();      // task ids being coloured in the prioritise step
+let prepSession = new Set();    // every task sent to the prioritise step since the buckets were last shown
 let dragging = false;
 let pendingRender = false;
 let taskSpeech = null;
@@ -145,6 +147,9 @@ let managerSpeech = null;
 let activeMicStop = null;       // stops whichever microphone is currently on
 let bucketIndex = 0;            // which priority bucket is shown (0-3)
 let showAllBuckets = false;     // true: all four buckets visible at once
+let bucketLock = false;         // true: the one-bucket / all-buckets choice is locked (double-click the button)
+let prefsUnsub = null;          // listens to the saved bucket view + lock (users/{uid}/settings/blueprint)
+let dragEndedAt = 0;            // when the last task drag finished, so the click that follows it is ignored
 
 /* ==========================================================================
    DOM refs
@@ -203,14 +208,24 @@ const els = {
   submitNote: $("#submit-note"),
   openManager: $("#open-manager"),
   toggleBuckets: $("#toggle-all-buckets"),
+  lockBuckets: $("#lock-buckets"),
   backBuckets: $("#back-buckets"),
   unsortedNote: $("#unsorted-note"),
   blueprintCard: $("#blueprint-card"),
   pastNote: $("#past-note"),
-  futureForm: $("#future-form"),
-  futureInput: $("#future-input"),
-  futurePriority: $("#future-priority"),
   bucketSummary: $("#bucket-summary"),
+  prioQuickSort: $("#prio-quick-sort"),
+  managerQuickSort: $("#manager-quick-sort"),
+  dayLockNote: $("#day-lock-note"),
+  openStars: $("#open-stars"),
+  stars: $("#stars"),
+  starsDone: $("#stars-done"),
+  starsRated: $("#stars-rated"),
+  calPrev: $("#cal-prev"),
+  calNext: $("#cal-next"),
+  calTitle: $("#cal-title"),
+  calGrid: $("#cal-grid"),
+  calLegend: $("#cal-legend"),
   manager: $("#manager"),
   managerList: $("#manager-list"),
   managerEmpty: $("#manager-empty"),
@@ -263,20 +278,27 @@ function openTasks() {
     .sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
 }
 // Dump = added but not yet prioritised (no colour).
-const dumpTasks = () => openTasks().filter(t => !t.priority);
+const dumpTasks = () => dayScopeTasks().filter(t => !t.priority);
 const sortedTasks = () => openTasks().filter(t => !!t.priority);
 
-// Past and future days show the buckets as they would stand on that day: tasks that have started
-// by then, in a bucket, and not yet completed. A completed task is cleared from every day's board,
-// earlier days included. Tasks with no createdOn date have no known start, so they only appear on today.
-function pendingOn(key) {
+// Past and future days show only the tasks added for that specific day, in a bucket, and not yet
+// completed. Carried-over tasks never appear on any day except today. A future day with nothing added
+// for it has empty buckets.
+function tasksAddedOn(key) {
   return tasks
-    .filter(t => t.priority && t.status !== "done" && !!t.createdOn && t.createdOn <= key)
+    .filter(t => t.priority && t.status !== "done" && t.createdOn === key)
     .sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
 }
 const isFutureView = () => viewKey > today;
-const isPastView = () => viewKey !== today;   // any day other than today: read-only board
-const boardTasks = () => (isPastView() ? pendingOn(viewKey) : sortedTasks());
+const isPastView = () => viewKey !== today;   // any day other than today: the board shows that day's own tasks
+const isReadOnlyDay = () => viewKey < today;  // earlier days are read only; future days work like today
+const boardTasks = () => (isPastView() ? tasksAddedOn(viewKey) : sortedTasks());
+
+// The task list the blueprint works on for the day on screen. Today: every open task that has started.
+// A future day: only the open tasks added for that day, so its blueprint starts empty.
+const dayScopeTasks = () => (isFutureView()
+  ? tasks.filter(t => t.status !== "done" && t.createdOn === viewKey).sort((a, b) => (a.order ?? 0) - (b.order ?? 0))
+  : openTasks());
 
 function nextOrder() {
   const open = openTasks();
@@ -416,12 +438,19 @@ function startListeners() {
     if (view === null) showView(sortedTasks().length ? "buckets" : "dump");
     refreshTasksUI();
   }, err => toast("Could not load tasks: " + err.message, 5000));
+  // The one-bucket / all-buckets choice and its lock are saved, so every device shows the same view.
+  prefsUnsub = onSnapshot(prefsRef(user.uid), snap => {
+    const p = snap.data() || {};
+    bucketLock = !!p.locked;
+    applyBucketMode(!!p.showAll);
+  }, () => {});
 }
 
 function stopListeners() {
   if (dayUnsub) dayUnsub();
   if (tasksUnsub) tasksUnsub();
-  dayUnsub = tasksUnsub = null;
+  if (prefsUnsub) prefsUnsub();
+  dayUnsub = tasksUnsub = prefsUnsub = null;
   tasks = [];
   dayData = {};
   view = null;
@@ -457,9 +486,16 @@ function flushSave() {
 }
 
 
-window.addEventListener("pagehide", () => { flushSave(); });
+// Leaving or hiding the app saves whatever is open: entry editors, and a task whose text is being edited.
+// Blurring the box runs its own save.
+function saveOpenEdits() {
+  const active = document.activeElement;
+  if (active?.classList?.contains("task-edit")) active.blur();
+  flushSave();
+}
+window.addEventListener("pagehide", saveOpenEdits);
 document.addEventListener("visibilitychange", () => {
-  if (document.visibilityState === "hidden") flushSave();
+  if (document.visibilityState === "hidden") saveOpenEdits();
   if (document.visibilityState === "visible") rolloverIfNewDay();
 });
 
@@ -573,6 +609,7 @@ function setEntryButton(kind) {
 }
 
 async function toggleEntryEdit(kind) {
+  if (!entryState[kind].editing && isLockedDay()) return;
   if (!entryState[kind].editing) {
     const s = entryState[kind];
     s.editing = true;
@@ -597,6 +634,7 @@ async function finishEntryEdit(kind) {
 // Adds what is in the input box (typed or spoken) as one or more tidied entries.
 async function addEntryFromInput(kind) {
   const input = els.entryInput[kind];
+  if (isLockedDay()) { input.value = ""; return; }
   const parts = cleanEntries(kind, [input.value]);
   input.value = "";
   if (!parts.length) return;
@@ -638,6 +676,9 @@ for (const kind of Object.keys(ENTRY_KINDS)) {
 // The app was started on this day. Earlier days have no data, so they show "No data available".
 const START_KEY = "2026-11-18";
 
+// Only today's page can be written. Earlier days are read only; later days show just the blueprint.
+const isLockedDay = () => viewKey !== today;
+
 function renderDate() {
   const isToday = viewKey === today;
   els.dateLong.textContent = longDate(viewKey);
@@ -647,6 +688,15 @@ function renderDate() {
   const beforeStart = viewKey < START_KEY;
   els.noData.hidden = !beforeStart;
   els.page.classList.toggle("before-start", beforeStart);
+  // Gratitude, letting go, the rating and submit are locked on every day except today.
+  els.page.classList.toggle("day-locked", isLockedDay());
+  els.dayLockNote.hidden = !isLockedDay();
+  els.dayLockNote.textContent = viewKey > today
+    ? "Locked until this day arrives. Only the blueprint is open for it."
+    : "Read only. Past days can be viewed but not changed.";
+  // Nothing exists before the app was started, so stop at its first day.
+  els.prev.disabled = viewKey <= START_KEY;
+  renderSubmitState();   // the note under the page depends on the day shown
 }
 
 function goToDay(key) {
@@ -671,7 +721,7 @@ function rolloverIfNewDay() {
   }
 }
 
-els.prev.addEventListener("click", () => goToDay(addDays(viewKey, -1)));
+els.prev.addEventListener("click", () => { if (viewKey > START_KEY) goToDay(addDays(viewKey, -1)); });
 els.next.addEventListener("click", () => goToDay(addDays(viewKey, 1)));
 els.jumpToday.addEventListener("click", () => goToDay(today));
 setInterval(rolloverIfNewDay, 60_000);
@@ -850,7 +900,7 @@ function renderRatings() {
 }
 
 async function setRating(key) {
-  if (!user) return;
+  if (!user || isLockedDay()) return;
   try {
     await setDoc(dayRef(user.uid, viewKey), { rating: key, updatedAt: serverTimestamp() }, { merge: true });
   } catch (err) {
@@ -864,15 +914,26 @@ async function setRating(key) {
 
 function renderSubmitState() {
   const submitted = !!dayData.submitted;
+  const locked = isLockedDay();
   els.submittedBadge.hidden = !submitted;
+  // Only today's page can be submitted or reopened. Earlier days are records; later days are not open yet.
+  els.submitBtn.hidden = locked;
   els.submitBtn.textContent = submitted ? "Reopen this page" : "Submit today's page";
-  els.submitNote.textContent = submitted
-    ? "This page is submitted. You can still edit it, and reopen to change its status."
-    : "Submit when the day is done. Your page is saved as you type either way.";
+  if (viewKey > today) {
+    els.submitNote.textContent = "This day has not arrived yet. Tasks you add for it are saved straight away and show on this day.";
+  } else if (locked) {
+    els.submitNote.textContent = submitted
+      ? "This page was submitted. It is a record and cannot be changed."
+      : "This page was not submitted. It is a record and cannot be changed.";
+  } else {
+    els.submitNote.textContent = submitted
+      ? "This page is submitted. You can still edit it, and reopen to change its status."
+      : "Submit when the day is done. Your page is saved as you type either way.";
+  }
 }
 
 els.submitBtn.addEventListener("click", async () => {
-  if (!user) return;
+  if (!user || isLockedDay()) return;
   await flushSave();
   const submitted = !!dayData.submitted;
   try {
@@ -895,40 +956,92 @@ els.submitBtn.addEventListener("click", async () => {
 
 function showView(name) {
   view = name;
-  if (name === "prioritize") preparing = new Set(dumpTasks().map(t => t.id));
-  else preparing = new Set();
+  // Going back to the prioritise step (even after a trip to the dump) shows the tasks from this round too.
+  // Showing the buckets (Done) ends the round.
+  if (name === "prioritize") dumpTasks().forEach(t => prepSession.add(t.id));
+  if (name === "buckets") prepSession = new Set();
+  preparing = name === "prioritize" ? new Set(prepSession) : new Set();
   els.viewDump.hidden = name !== "dump";
   els.viewPrioritize.hidden = name !== "prioritize";
   els.viewBuckets.hidden = name !== "buckets";
   renderBlueprint();
 }
 
-els.goPrioritize.addEventListener("click", () => showView("prioritize"));
-els.backDump.addEventListener("click", () => showView("dump"));
-els.showBuckets.addEventListener("click", () => showView("buckets"));
-els.addMore.addEventListener("click", () => showView("dump"));
-els.backBuckets.addEventListener("click", () => showView("buckets"));
+// When the user moves between steps, bring the blueprint card to the top of the screen. On a phone the
+// page can be scrolled down to the rating card, and a step change would otherwise happen off screen.
+function goView(name) {
+  showView(name);
+  const card = els.blueprintCard;
+  const bar = document.querySelector(".topbar");
+  const offset = (bar ? bar.offsetHeight : 0) + 12;
+  window.scrollTo({ top: card.getBoundingClientRect().top + window.scrollY - offset, behavior: "smooth" });
+}
 
-// "Show all buckets" toggles between one bucket at a time and all four at once.
-function setShowAllBuckets(on) {
+els.goPrioritize.addEventListener("click", () => goView("prioritize"));
+els.backDump.addEventListener("click", () => goView("dump"));
+els.showBuckets.addEventListener("click", () => goView("buckets"));
+els.addMore.addEventListener("click", () => goView("dump"));
+els.backBuckets.addEventListener("click", () => goView("buckets"));
+// The "N tasks are not prioritised yet" note opens the prioritise step with those tasks.
+els.unsortedNote.addEventListener("click", () => goView("prioritize"));
+
+// "Show all buckets" switches between one bucket at a time and all four at once.
+// "Lock buckets" freezes that choice; it is saved, so it holds on every device.
+function applyBucketMode(on) {
   showAllBuckets = on;
   els.blueprintCard.classList.toggle("show-all-buckets", on);
   els.toggleBuckets.setAttribute("aria-pressed", String(on));
-  els.toggleBuckets.textContent = on ? "Show one bucket" : "Show all buckets";
+  renderToggleLabel();
   renderBucketNav();
 }
-els.toggleBuckets.addEventListener("click", () => setShowAllBuckets(!showAllBuckets));
+
+// View button icons: 1C (one bucket with task lines) and 2B (four buckets in a grid).
+const BUCKET_SHAPE = '<path d="M4 10h16l-1.8 9.4a1.6 1.6 0 0 1-1.6 1.3H7.4a1.6 1.6 0 0 1-1.6-1.3L4 10z"/><path d="M7.5 10a4.5 4.5 0 0 1 9 0"/>';
+const VIEW_ICON_ONE = BUCKET_SHAPE + '<path d="M8.5 13.5h7M8.5 16.5h5"/>';
+const VIEW_ICON_ALL = [[0, 0], [12.5, 0], [0, 12.5], [12.5, 12.5]]
+  .map(([x, y]) => `<g transform="translate(${x} ${y}) scale(0.4583)">${BUCKET_SHAPE}</g>`).join("");
+
+// Updates both buttons: the view button and the lock button.
+function renderToggleLabel() {
+  // Each label names the view the button switches to.
+  els.toggleBuckets.querySelector(".btn-text").textContent = showAllBuckets ? "One" : "All";
+  // Icon 1C (one bucket with task lines) or 2B (four buckets), placed after the text.
+  els.toggleBuckets.querySelector(".btn-icon").innerHTML = showAllBuckets ? VIEW_ICON_ONE : VIEW_ICON_ALL;
+  els.lockBuckets.querySelector(".btn-text").textContent = bucketLock ? "Unlock" : "Lock";
+  els.lockBuckets.querySelector(".btn-icon").innerHTML = bucketLock
+    ? '<rect x="5" y="10.5" width="14" height="10" rx="2"/><path d="M8 10.5V7.5a4 4 0 0 1 8 0v3"/>'
+    : '<rect x="5" y="10.5" width="14" height="10" rx="2"/><path d="M8 10.5V7.5a4 4 0 0 1 7.8-1.2"/>';
+  els.lockBuckets.setAttribute("aria-pressed", String(bucketLock));
+  els.lockBuckets.classList.toggle("is-locked", bucketLock);
+}
+
+function saveBucketPrefs() {
+  if (!user) return;
+  setDoc(prefsRef(user.uid), { showAll: showAllBuckets, locked: bucketLock, updatedAt: serverTimestamp() }, { merge: true })
+    .catch(err => toast("Could not save the view: " + err.message));
+}
+
+els.toggleBuckets.addEventListener("click", () => {
+  if (bucketLock) { toast("Buckets are locked. Press Unlock buckets first.", 2400); return; }
+  applyBucketMode(!showAllBuckets);
+  saveBucketPrefs();
+});
+
+els.lockBuckets.addEventListener("click", () => {
+  bucketLock = !bucketLock;
+  renderToggleLabel();
+  saveBucketPrefs();
+  toast(bucketLock ? "Buckets locked on all your devices." : "Buckets unlocked.", 2000);
+});
 
 function renderBlueprint() {
-  const past = isPastView();
+  // Only earlier days are read only. Future days show the same blueprint as today, for their own tasks.
+  const past = isReadOnlyDay();
   // Always shown, so a past day keeps its priority buckets even when no tasks were pending.
   els.blueprintCard.hidden = false;
   els.openManager.hidden = past;
   els.pastNote.hidden = !past;
-  els.pastNote.textContent = isFutureView()
-    ? "A day ahead. Tasks you add here show up only on this day."
-    : "Read only. These are the tasks still pending on this day.";
-  els.futureForm.hidden = !isFutureView();
+  els.pastNote.textContent = "Read only. These are the tasks added on this day.";
   els.addMore.hidden = past;
   if (past) {
     els.viewDump.hidden = true;
@@ -945,6 +1058,37 @@ function renderBlueprint() {
   renderCompleted();
 }
 
+// A single tap on a task's text opens it for editing. This is handled on the list itself (which is
+// never redrawn), so a redraw that lands between press and release cannot swallow the tap.
+// Anywhere on a row (except the delete button and an open editor) starts editing that row's text.
+// Mouse and pen open on press, straight away. Touch waits for the finger to lift, so a scroll does not open it.
+let dumpPress = null;
+function openDumpEdit(li) {
+  const t = tasks.find(x => x.id === li?.dataset.id);
+  const span = li?.querySelector(".dump-text");
+  if (t && span) editTaskText(span, t);
+}
+els.dumpList.addEventListener("pointerdown", e => {
+  dumpPress = null;
+  if (e.button > 0 || e.target.closest(".m-del, input")) return;
+  const li = e.target.closest(".dump-item");
+  if (!li) return;
+  if (e.pointerType === "touch") {
+    dumpPress = { id: e.pointerId, x: e.clientX, y: e.clientY, li };
+  } else {
+    e.preventDefault();   // keep focus from bouncing off the new box straight away
+    openDumpEdit(li);
+  }
+});
+els.dumpList.addEventListener("pointerup", e => {
+  const press = dumpPress;
+  dumpPress = null;
+  if (!press || e.pointerId !== press.id || e.button > 0) return;
+  if (Math.hypot(e.clientX - press.x, e.clientY - press.y) > 8) return;   // a scroll or a drag, not a tap
+  if (e.target.closest(".m-del, input")) return;
+  openDumpEdit(press.li);
+});
+
 function renderDump() {
   const dump = dumpTasks();
   els.dumpList.innerHTML = "";
@@ -954,32 +1098,38 @@ function renderDump() {
       onclick: () => deleteTask(t)
     });
     del.innerHTML = TRASH_SVG;
-    els.dumpList.append(el("li", { class: "dump-item" }, el("span", { class: "dump-text", text: t.text }), del));
+    const text = el("span", { class: "dump-text", text: t.text, title: "Tap to edit" });
+    els.dumpList.append(el("li", { class: "dump-item", "data-id": t.id }, text, del));
   }
   els.dumpEmpty.hidden = dump.length > 0;
   els.dumpCount.textContent = dump.length ? `${dump.length} to prioritise` : "";
-  els.goPrioritize.disabled = dump.length === 0;
+  // Always available, so the prioritise step can be reopened even when the dump is empty.
+  els.goPrioritize.disabled = false;
 }
+
+// Tasks shown on the prioritise step: the ones in this step, plus any task added since it opened
+// (such as from the manager) that has no colour yet.
+const prioritizeTargets = () => dayScopeTasks().filter(t => preparing.has(t.id) || !t.priority);
 
 function renderPrioritize() {
   if (view !== "prioritize" || isEditingTaskText()) return;
-  // Tasks in this step, plus any task added since it opened (such as from the manager) that has no colour yet.
-  const list = openTasks().filter(t => preparing.has(t.id) || !t.priority);
+  const list = prioritizeTargets();
   els.prioritizeList.innerHTML = "";
   list.forEach(t => els.prioritizeList.append(managerItem(t)));
+  setQuickSortEnabled(els.prioQuickSort, list.length);
 }
 
 function renderBoard() {
   renderBucketNav();
   const sorted = boardTasks();
-  const past = isPastView();
+  const readOnly = isReadOnlyDay();
   els.buckets.innerHTML = "";
-  els.buckets.classList.toggle("is-readonly", past);
-  els.bucketsEmpty.hidden = sorted.length > 0 || past;
+  els.buckets.classList.toggle("is-readonly", readOnly);
+  els.bucketsEmpty.hidden = sorted.length > 0 || readOnly;
 
   // Quiet reminder: tasks still waiting to be put in a priority bucket.
   const unsorted = dumpTasks().length;
-  els.unsortedNote.hidden = past || unsorted === 0;
+  els.unsortedNote.hidden = isReadOnlyDay() || unsorted === 0;
   els.unsortedNote.textContent = `${unsorted} Task${unsorted === 1 ? " Is" : "s Are"} Not Prioritised Yet`;
 
   for (const p of PRIORITIES) {
@@ -992,7 +1142,7 @@ function renderBoard() {
       ),
       el("p", { class: "bucket-hint", text: p.hint }),
       el("ul", { class: "bucket-list", "data-priority": p.key },
-        items.length ? items.map(t => taskItem(t, past)) : [el("li", { class: "bucket-empty", text: "Nothing here" })]
+        items.length ? items.map(t => taskItem(t, readOnly)) : [el("li", { class: "bucket-empty", text: "Nothing here" })]
       )
     ));
   }
@@ -1014,18 +1164,54 @@ function renderBucketSummary(sorted) {
 
 function taskItem(t, readOnly = false) {
   const color = (PRIORITY_BY_KEY[t.priority] || UNSORTED).color;
-  const check = readOnly ? null : el("button", {
+  // A task for a future day cannot be ticked off before that day arrives. Everything else is the same as today.
+  const check = (readOnly || isFutureView()) ? null : el("button", {
     type: "button", class: "check", "aria-label": "Mark as done", title: "Done",
     onclick: e => completeTask(t.id, e.currentTarget.closest("li"))
   }, checkSvg());
   const label = carriedLabel(t, viewKey);
-  return el("li", { class: "task", "data-id": t.id, style: { "--c": color } },
+  // Tapping the task (not the tick) edits its text in place. Not on a past day, which is read only.
+  const onTap = readOnly ? null : e => {
+    if (e.target.closest(".check, input") || Date.now() - dragEndedAt < 400) return;
+    const holder = e.currentTarget.querySelector(".task-text");
+    if (holder) editTaskText(holder, t);
+  };
+  return el("li", { class: "task", "data-id": t.id, style: { "--c": color }, onclick: onTap },
     check,
     el("div", { class: "task-text" },
       t.text,
       el("span", { class: "task-meta" }, el("span", { class: t.createdOn < viewKey ? "carry" : "", text: label }))
     )
   );
+}
+
+// Edits a task's text where it is shown. Enter or leaving the box saves; Escape cancels.
+function editTaskText(holder, t) {
+  if (!user || isReadOnlyDay() || !holder.isConnected) return;
+  const input = el("input", { type: "text", class: "m-text task-edit", value: t.text, maxlength: 300, "aria-label": "Task text" });
+  let cancelled = false, finished = false;
+  input.addEventListener("keydown", e => {
+    if (e.key === "Enter") { e.preventDefault(); input.blur(); }
+    else if (e.key === "Escape") { cancelled = true; input.blur(); }
+  });
+  input.addEventListener("blur", () => {
+    if (finished) return;
+    finished = true;
+    const v = capitalizeWords(input.value);
+    if (!cancelled && v && v !== t.text) {
+      t.text = v;   // optimistic, so the new text shows at once
+      updateDoc(taskRef(user.uid, t.id), { text: v }).catch(() => toast("Could not save text"));
+    }
+    // Put the same element back with the saved text. The list is not redrawn here, so a tap on
+    // another task at this moment still lands on the first try (a redraw would swallow it).
+    holder.firstChild.nodeValue = t.text;
+    input.replaceWith(holder);
+  });
+  holder.replaceWith(input);
+  // Focus straight away with the cursor at the end of the text, so typing continues from there.
+  input.focus();
+  const end = input.value.length;
+  input.setSelectionRange(end, end);
 }
 
 // Carried tasks say how long ago they were added, relative to the page being shown.
@@ -1044,7 +1230,7 @@ function carriedLabel(t, refKey = today) {
 }
 
 async function completeTask(id, li) {
-  if (!user || isPastView()) return;
+  if (!user || viewKey !== today) return;   // ticking off is only for today's tasks
   li?.classList.add("leaving");
   await sleep(230);
   try {
@@ -1067,9 +1253,10 @@ function renderCompleted() {
   els.completedCount.textContent = String(done.length);
   els.completedList.innerHTML = "";
   for (const t of done) {
+    // An earlier day is a record: its completed tasks cannot be restored from it.
     els.completedList.append(el("li", {},
       el("span", { text: t.text }),
-      el("button", { type: "button", class: "link-btn", onclick: () => restoreTask(t.id) }, "Restore")
+      isReadOnlyDay() ? null : el("button", { type: "button", class: "link-btn", onclick: () => restoreTask(t.id) }, "Restore")
     ));
   }
 }
@@ -1086,14 +1273,14 @@ async function restoreTask(id) {
    ========================================================================== */
 
 async function addTask(text) {
-  if (!user || !text.trim()) return;
+  if (!user || !text.trim() || isReadOnlyDay()) return;
   try {
     await addDoc(tasksCol(user.uid), {
       text: capitalizeWords(text).slice(0, 300),
       priority: null,            // starts in the dump, colour comes later
       order: nextOrder(),
       status: "open",
-      createdOn: today,
+      createdOn: viewKey,        // the day on screen: today, or a future day
       doneOn: null,
       createdAt: serverTimestamp()
     });
@@ -1115,37 +1302,6 @@ els.taskForm.addEventListener("submit", async e => {
   catch { els.taskInput.value = text; }
 });
 
-// Adds a task for a future day. It goes straight into a bucket and only shows on that day.
-async function addFutureTask(text, priority) {
-  if (!user || !text.trim() || !isFutureView()) return;
-  const day = viewKey;
-  try {
-    await addDoc(tasksCol(user.uid), {
-      text: capitalizeWords(text).slice(0, 300),
-      priority,
-      order: nextOrder(),
-      status: "open",
-      createdOn: day,
-      doneOn: null,
-      createdAt: serverTimestamp()
-    });
-    toast(`Added for ${longDate(day)}`, 2200);
-  } catch (err) {
-    toast("Could not add task: " + err.message);
-    throw err;
-  }
-}
-
-for (const p of PRIORITIES) els.futurePriority.append(el("option", { value: p.key, text: p.label }));
-els.futureForm.addEventListener("submit", async e => {
-  e.preventDefault();
-  const text = els.futureInput.value.trim();
-  if (!text) return;
-  els.futureInput.value = "";
-  try { await addFutureTask(text, els.futurePriority.value); }
-  catch { els.futureInput.value = text; }
-});
-
 async function setTaskPriority(id, key) {
   if (!user) return;
   const t = tasks.find(x => x.id === id);
@@ -1157,7 +1313,6 @@ async function setTaskPriority(id, key) {
 
 async function deleteTask(t) {
   if (!user) return;
-  if (!confirm(`Delete "${t.text}"?`)) return;
   try { await deleteDoc(taskRef(user.uid, t.id)); toast("Task deleted", 1800); }
   catch (err) { toast("Could not delete: " + err.message); }
 }
@@ -1225,11 +1380,47 @@ document.addEventListener("focusout", () => {
 });
 
 function renderManager() {
-  const open = openTasks();
+  const open = dayScopeTasks();
   els.managerList.innerHTML = "";
   open.forEach(t => els.managerList.append(managerItem(t)));
   els.managerEmpty.hidden = open.length > 0;
   els.managerCount.textContent = `${open.length} open task${open.length === 1 ? "" : "s"}`;
+  setQuickSortEnabled(els.managerQuickSort, open.length);
+}
+
+/* "All High / All Medium / All Low / All Whenever" buttons: put every task in the list into one priority.
+   Prioritise step: the tasks shown there. Manage all tasks: only the tasks that still have no priority,
+   so tasks already sorted are never changed by accident. */
+// Even shorter names for the one-row buttons on phones.
+const PHONE_SHORT = { urgent: "High", normal: "Mid", okay: "Low", whenever: "Whenever" };
+function buildQuickSort(container, label, targets) {
+  container.append(el("span", { class: "qs-label", text: label }));
+  for (const p of PRIORITIES) {
+    container.append(el("button", {
+      type: "button", class: "btn btn-ghost btn-sm qs-btn", style: { "--c": p.color },
+      title: `${p.label}: ${p.hint}`, "aria-label": `All tasks to ${p.label}`,
+      onclick: () => setPriorityForAll(targets(), p.key)
+    }, el("i", { class: "qs-dot", "aria-hidden": "true" }), el("span", { class: "qs-all", text: "All " }),
+       el("span", { class: "qs-full", text: SHORT_LABEL[p.key] }), el("span", { class: "qs-short", text: PHONE_SHORT[p.key] })));
+  }
+}
+
+function setQuickSortEnabled(container, count) {
+  container.querySelectorAll("button").forEach(b => { b.disabled = count === 0; });
+}
+
+async function setPriorityForAll(list, key) {
+  if (!user || !list.length) return;
+  for (const t of list) t.priority = key;   // optimistic
+  refreshTasksUI();
+  const batch = writeBatch(db);
+  list.forEach(t => batch.update(taskRef(user.uid, t.id), { priority: key }));
+  try {
+    await batch.commit();
+    toast(`${list.length} task${list.length === 1 ? "" : "s"} set to ${PRIORITY_BY_KEY[key].label}`, 2200);
+  } catch (err) {
+    toast("Could not set priority: " + err.message);
+  }
 }
 
 /* Drag a task by its row (no handle): mouse press and move, or on touch press and hold.
@@ -1356,9 +1547,9 @@ function enableBucketDrag() {
   const HOLD_MS = 220;
 
   board.addEventListener("pointerdown", e => {
-    if (e.button > 0 || isPastView()) return;
+    if (e.button > 0 || isReadOnlyDay()) return;
     const item = e.target.closest("li.task");
-    if (!item || e.target.closest(".check")) return;
+    if (!item || e.target.closest(".check, input")) return;
 
     const pid = e.pointerId;
     const sx = e.clientX, sy = e.clientY;
@@ -1465,6 +1656,7 @@ function beginBucketDrag(item, sx, sy) {
       document.body.style.userSelect = "";
       dragging = false;
       els.buckets.classList.remove("dragging-all");
+      dragEndedAt = Date.now();
       saveBucketOrder();
     }
   };
@@ -1588,6 +1780,129 @@ els.manager.querySelectorAll("[data-close]").forEach(b => b.addEventListener("cl
 document.addEventListener("keydown", e => { if (e.key === "Escape" && !els.manager.hidden) closeManager(); });
 
 /* ==========================================================================
+   My stars: the medal for every rated day, and how many tasks are done
+   ========================================================================== */
+
+// Rated days as "yyyy-mm-dd" -> rating key, and the month the calendar is showing ({y, m}, m from 0).
+let starRatings = new Map();
+let starsMonth = null;
+
+function openStars() {
+  if (!user) return;
+  els.userMenuPop.hidden = true;
+  els.userMenuBtn.setAttribute("aria-expanded", "false");
+  els.stars.hidden = false;
+  document.body.style.overflow = "hidden";
+  // Completed tasks are counted from the task list, which already holds every task since the start.
+  els.starsDone.textContent = String(tasks.filter(t => t.status === "done").length);
+  els.starsRated.textContent = "…";
+  const now = parseKey(today);
+  starsMonth = { y: now.getFullYear(), m: now.getMonth() };
+  renderStarCalendar();
+  loadStars();
+}
+
+async function loadStars() {
+  try {
+    const snap = await getDocs(collection(db, "users", user.uid, "days"));
+    starRatings = new Map(snap.docs
+      .map(d => [d.id, d.data().rating])
+      .filter(([key, rating]) => key >= START_KEY && key <= today && RATINGS.some(r => r.key === rating)));
+    els.starsRated.textContent = String(starRatings.size);
+    renderStarCalendar();
+  } catch (err) {
+    els.starsRated.textContent = "0";
+    toast("Could not load your stars: " + err.message, 4000);
+  }
+}
+
+// Names shown for each medal on the calendar and its legend.
+const STAR_NAME = { gold: "Diamond", best: "Gold", average: "Silver", wasted: "Rusty Iron" };
+
+// One month as a calendar: each day shows its medal, if a rating was given on it.
+function renderStarCalendar() {
+  if (!starsMonth) return;
+  const { y, m } = starsMonth;
+  const first = new Date(y, m, 1);
+  const daysInMonth = new Date(y, m + 1, 0).getDate();
+  const startMonth = START_KEY.slice(0, 7), todayMonth = today.slice(0, 7);
+  const thisMonth = `${y}-${pad(m + 1)}`;
+
+  els.calTitle.textContent = first.toLocaleDateString(undefined, { month: "long", year: "numeric" });
+  els.calPrev.disabled = thisMonth <= startMonth;
+  els.calNext.disabled = thisMonth >= todayMonth;
+
+  els.calGrid.innerHTML = "";
+  // Weeks start on Monday.
+  for (const name of ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]) {
+    els.calGrid.append(el("div", { class: "cal-wd", "aria-hidden": "true", text: name }));
+  }
+  const offset = (first.getDay() + 6) % 7;
+  for (let i = 0; i < offset; i++) els.calGrid.append(el("div", { class: "cal-cell is-blank", "aria-hidden": "true" }));
+  for (let d = 1; d <= daysInMonth; d++) {
+    const key = `${thisMonth}-${pad(d)}`;
+    const inRange = key >= START_KEY && key <= today;
+    const r = RATINGS.find(item => item.key === starRatings.get(key));
+    const cell = el("div", {
+      class: "cal-cell" + (inRange ? "" : " is-off") + (key === today ? " is-today" : ""),
+      title: r ? `${longDate(key)}: ${STAR_NAME[r.key]}` : longDate(key)
+    }, el("span", { class: "cal-day", text: String(d) }));
+    if (r) {
+      const icon = badgeIcon(r);
+      icon.classList.add("cal-badge");
+      cell.append(icon);
+    }
+    els.calGrid.append(cell);
+  }
+
+  els.calLegend.innerHTML = "";
+  for (const r of RATINGS) {
+    const icon = badgeIcon(r);
+    icon.classList.add("cal-badge");
+    els.calLegend.append(el("li", {}, icon, el("span", { text: STAR_NAME[r.key] })));
+  }
+}
+
+els.calPrev.addEventListener("click", () => {
+  starsMonth = starsMonth.m === 0 ? { y: starsMonth.y - 1, m: 11 } : { y: starsMonth.y, m: starsMonth.m - 1 };
+  renderStarCalendar();
+});
+els.calNext.addEventListener("click", () => {
+  starsMonth = starsMonth.m === 11 ? { y: starsMonth.y + 1, m: 0 } : { y: starsMonth.y, m: starsMonth.m + 1 };
+  renderStarCalendar();
+});
+
+function closeStars() {
+  els.stars.hidden = true;
+  document.body.style.overflow = "";
+}
+
+// Clears every completed task, on every day, so the count starts again at 0. Only tasks are removed:
+// diary entries, ratings and submitted pages are kept.
+async function clearCompletedTasks() {
+  if (!user) return;
+  const done = tasks.filter(t => t.status === "done");
+  if (!done.length) { toast("No completed tasks to clear.", 2200); return; }
+  try {
+    // Firestore batches hold at most 500 writes, so delete in chunks.
+    for (let i = 0; i < done.length; i += 450) {
+      const batch = writeBatch(db);
+      done.slice(i, i + 450).forEach(t => batch.delete(taskRef(user.uid, t.id)));
+      await batch.commit();
+    }
+    els.starsDone.textContent = "0";
+    toast(`Cleared ${done.length} completed task${done.length === 1 ? "" : "s"}.`, 2600);
+  } catch (err) {
+    toast("Could not clear completed tasks: " + err.message, 4000);
+  }
+}
+
+els.openStars.addEventListener("click", openStars);
+$("#clear-completed").addEventListener("click", clearCompletedTasks);
+els.stars.querySelectorAll("[data-close]").forEach(b => b.addEventListener("click", closeStars));
+document.addEventListener("keydown", e => { if (e.key === "Escape" && !els.stars.hidden) closeStars(); });
+
+/* ==========================================================================
    Boot (runs after every function and constant above is defined)
    ========================================================================== */
 
@@ -1636,9 +1951,13 @@ document.addEventListener("keydown", e => { if (e.key === "Escape" && !els.manag
 
 })();
 
+buildQuickSort(els.prioQuickSort, "Put all of these in:", prioritizeTargets);
+buildQuickSort(els.managerQuickSort, "All open tasks:", dayScopeTasks);
+
 renderDate();
 renderQuote();
 renderRatings();
 renderSubmitState();
 renderAllEntries();
 renderBlueprint();
+renderToggleLabel();
